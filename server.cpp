@@ -33,7 +33,7 @@ int main(int argc, char const *argv[])
         hints.ai_family=AF_INET; // IPv4
         hints.ai_socktype=SOCK_DGRAM; // UDP socket
         hints.ai_flags=AI_PASSIVE;
-        errcode=getaddrinfo(NULL,"58003",&hints,&res);
+        errcode=getaddrinfo(NULL,"58002",&hints,&res);
         if(errcode!=0) /*error*/ exit(1);
         n=bind(fd,res->ai_addr, res->ai_addrlen);
         if(n==-1) /*error*/ exit(1);
@@ -42,23 +42,18 @@ int main(int argc, char const *argv[])
             n=recvfrom(fd,msgCode,3,0, (struct sockaddr*)&addr,&addrlen);
             msgCode[3] = '\0';
             if(n==-1)/*error*/exit(1);
-            printf("%d\n", n);
-            printf("%s\n", msgCode);
-            printf("%d\n", strncmp(msgCode, "SNG", 3));
-            if (1) {
-                printf("SNG");
+            if (strcmp(msgCode, "SNG") == 0){
                 char id[7];
                 // n = recvfrom(fd, id, 1, 0, (struct sockaddr*)&addr, &addrlen);
                 // printf("debug: %d\n", n);
                 // if(n==-1)/*error*/exit(1);
                 // n = recvfrom(fd,id,6,0, (struct sockaddr*)&addr,&addrlen);
-                n = read(fd, id, 1);
-                printf("debug: %d\n", n);
+                n = recvfrom(fd, id, 1, 0, (struct sockaddr*)&addr, &addrlen);
                 if(n==-1)/*error*/exit(1);
-                n = read(fd,id,6);
+                n = recvfrom(fd, id, 6, 0, (struct sockaddr*)&addr,&addrlen);
                 id[6] = '\0';
                 if(n==-1)/*error*/exit(1);
-                printf("read id %s", id);
+                printf("read id %s\n", id);
             }
             else if (strcmp(msgCode, "RSG") == 0) {
                 printf("RSG");
@@ -90,6 +85,7 @@ int main(int argc, char const *argv[])
             else {
                 printf("Invalid message code");
             }
+            printf("skipped");
         }
         freeaddrinfo(res);
         close(fd);
