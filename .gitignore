@@ -1,2 +1,8 @@
+Makefile
 server
+server.cpp
 client
+gamserver.cpp
+gamserver 
+testclient.cpp
+testclient

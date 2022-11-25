@@ -33,7 +33,7 @@ int main(int argc, char const *argv[])
         hints.ai_family=AF_INET; // IPv4
         hints.ai_socktype=SOCK_DGRAM; // UDP socket
         hints.ai_flags=AI_PASSIVE;
-        errcode=getaddrinfo(NULL,"58002",&hints,&res);
+        errcode=getaddrinfo(NULL,"58001",&hints,&res);
         if(errcode!=0) /*error*/ exit(1);
         n=bind(fd,res->ai_addr, res->ai_addrlen);
         if(n==-1) /*error*/ exit(1);
@@ -41,6 +41,7 @@ int main(int argc, char const *argv[])
             addrlen=sizeof(addr);
             n=recvfrom(fd,msgCode,3,0, (struct sockaddr*)&addr,&addrlen);
             msgCode[3] = '\0';
+            printf("%s", msgCode);
             if(n==-1)/*error*/exit(1);
             if (strcmp(msgCode, "SNG") == 0){
                 /* Read PlayerID*/
@@ -111,4 +112,3 @@ int main(int argc, char const *argv[])
         //servertcp();
     } */
 }
-
