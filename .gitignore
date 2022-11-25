@@ -3,6 +3,6 @@ server
 server.cpp
 client
 gamserver.cpp
-gamserver 
 testclient.cpp
-testclient
+utils.cpp
+utils.h
