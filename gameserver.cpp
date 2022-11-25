@@ -33,7 +33,7 @@ int udp(void){
     while (1){
         addrlen=sizeof(addr);
         n=recvfrom(fd,buffer,128,0,(struct sockaddr*)&addr,&addrlen);
-        printf("%s\n", buffer);
+        printf("%s", buffer);
         if(n==-1)/*error*/exit(1);
         write(1,"received: ",10);
         write(1,buffer,n);
