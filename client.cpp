@@ -15,25 +15,19 @@ int main(int argc, char const *argv[])
     // socklen_t addrlen;
     struct addrinfo hints,*res;
     struct sockaddr_in addr;
+    char buffer[129];
     //127.0.0.1
     fd=socket(AF_INET,SOCK_DGRAM,0); //UDP socket
     if(fd==-1) /*error*/exit(1);
     memset(&hints,0,sizeof hints);
     hints.ai_family=AF_INET; //IPv4
     hints.ai_socktype=SOCK_DGRAM; //UDP socket
-    errcode=getaddrinfo("DESKTOP-8NS8GE1","58002",&hints,&res);
+    errcode=getaddrinfo("sebas.localdomain","58002",&hints,&res);
     if(errcode!=0) /*error*/ exit(1);
     /* Como há parâmetros que podem variar de dimensão, talvez ler tudo 
         primeiro para um buffer e partir depois a msg */
-    n=sendto(fd,"PLG", 3 ,0 , res->ai_addr, res->ai_addrlen);
-    if(n==-1) /*error*/ exit(1);
-    n=sendto(fd, " ", 1, 0, res->ai_addr, res->ai_addrlen);
-    if(n==-1) /*error*/ exit(1);
-    n=sendto(fd, "199222", 6, 0, res->ai_addr, res->ai_addrlen);
-    if(n==-1) /*error*/ exit(1);
-    n=sendto(fd, "a", 1, 0, res->ai_addr, res->ai_addrlen);
-    if(n==-1) /*error*/ exit(1);
-    n=sendto(fd, "5", 1, 0, res->ai_addr, res->ai_addrlen);
+    strcpy(buffer, "PLG 199326 a 4");
+    n=sendto(fd,buffer, 128 ,0 , res->ai_addr, res->ai_addrlen);
     if(n==-1) /*error*/ exit(1);
     // addrlen=sizeof(addr);
     // n=recvfrom(fd,buffer,128,0,

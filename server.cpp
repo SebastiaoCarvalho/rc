@@ -25,7 +25,7 @@ int main(int argc, char const *argv[])
         socklen_t addrlen;
         struct addrinfo hints,*res;
         struct sockaddr_in addr;
-        char msgCode[4];
+        char buffer[129];
         // child process
         fd=socket(AF_INET,SOCK_DGRAM,0); //UDP socket
         if(fd==-1) /*error*/exit(1);
@@ -39,62 +39,91 @@ int main(int argc, char const *argv[])
         if(n==-1) /*error*/ exit(1);
         while (1){
             addrlen=sizeof(addr);
-            n=recvfrom(fd,msgCode,3,0, (struct sockaddr*)&addr,&addrlen);
-            msgCode[3] = '\0';
+            printf("Waiting for message...\n");
+            n=recvfrom(fd,buffer, 128, 0, (struct sockaddr*)&addr,&addrlen);
+            buffer[128] = '\0';
             if(n==-1)/*error*/exit(1);
-            if (strcmp(msgCode, "SNG") == 0){
+            if (strncmp(buffer, "SNG", 3) == 0){
                 /* Read PlayerID*/
                 char id[7];
-                n = recvfrom(fd, id, 1, 0, (struct sockaddr*)&addr, &addrlen);
-                if(n==-1)/*error*/exit(1);
-                n = recvfrom(fd, id, 6, 0, (struct sockaddr*)&addr,&addrlen);
+                strncpy(id, buffer+4, 6);
                 id[6] = '\0';
                 if(n==-1)/*error*/exit(1);
+                printf("PlayerID: %s\n", id);
+                ssize_t offset = 0;
+                strncpy(buffer, "RNG ", 4);
+                offset += 4;
+                strncpy(buffer + offset, "OK", 2);
+                offset += 2;
+                strncpy(buffer + offset, "5", 1);
+                offset += 1;
+                strncpy(buffer + offset, " ", 1);
+                offset += 1;
+                strncpy(buffer + offset, "7", 1);
+                offset += 1;
+                buffer[offset] = '\0';
+                n=sendto(fd,buffer, 128 ,0 , (struct sockaddr*)&addr, addrlen);
             }
-            else if (strcmp(msgCode, "RSG") == 0) {
-                printf("RSG");
-            }
-            else if (strcmp(msgCode, "PLG") == 0) {
+            else if (strncmp(buffer, "PLG", 3) == 0) {
                 /* Read PlayerID*/
                 char id[7];
-                n = recvfrom(fd, id, 1, 0, (struct sockaddr*)&addr, &addrlen);
-                if(n==-1)/*error*/exit(1);
-                n = recvfrom(fd, id, 6, 0, (struct sockaddr*)&addr,&addrlen);
+                strncpy(id, buffer+4, 6);
                 id[6] = '\0';
                 if(n==-1)/*error*/exit(1);
-                printf("%s", id);
+                printf("%s\n", id);
                 /*Read letter*/
                 char letter[2];
-                n = recvfrom(fd, letter, 1, 0, (struct sockaddr*)&addr, &addrlen);
-                if(n==-1)/*error*/exit(1);
+                strncpy(letter, buffer+11, 1);
                 letter[1] = '\0';
-                printf("%s", letter);
+                printf("%s\n", letter);
                 /*Read Trial*/
                 char trial[2];
-                n = recvfrom(fd, &trial, 1, 0, (struct sockaddr*)&addr, &addrlen);
-                if(n==-1)/*error*/exit(1);
+                strncpy(trial, buffer+13, 1);
+                trial[1] = '\0';
+                int trial_int = atoi(trial);
+                trial_int++;
+                snprintf(trial, 1, "%d", trial_int);
                 trial[1] = '\0';
                 printf("%s\n", trial);
-            }
-            else if (strcmp(msgCode, "RLG") == 0) {
+                char status[3];
+                if (trial_int > 9) {
+                    strncpy(status, "OVR", 3);
+                }
+                else {
+                    strncpy(status, "OK", 2);
+                    strncpy(status + 2, "", 1);
+                }
+                strncpy(buffer, "RLG ", 3);
+                ssize_t offset = 4;
+                strncpy(buffer + offset, status, 3);
+                offset += 3;
+                strncpy(buffer + offset, " ", 1);
+                offset += 1;
+                strncpy(buffer + offset, trial, 1);
+                offset += 1;
+                strncpy(buffer + offset, " ", 1);
+                offset += 1;
+                strncpy(buffer + offset, "1", 1);
+                buffer[offset] = '\0';
+                n=sendto(fd,buffer, 128 ,0 , (struct sockaddr*)&addr, addrlen);
 
             }
-            else if (strcmp(msgCode, "PWG") == 0) {
+            else if (strncmp(buffer, "PWG", 3) == 0) {
 
             }
-            else if (strcmp(msgCode, "RWG") == 0) {
+            else if (strncmp(buffer, "RWG", 3) == 0) {
 
             }
-            else if (strcmp(msgCode, "QUT") == 0) {
+            else if (strncmp(buffer, "QUT", 3) == 0) {
 
             }            
-            else if (strcmp(msgCode, "RQT") == 0) {
+            else if (strncmp(buffer, "RQT", 3) == 0) {
 
             }
-            else if (strcmp(msgCode, "REV") == 0) {
+            else if (strncmp(buffer, "REV", 3) == 0) {
                 
             }
-            else if (strcmp(msgCode, "RRV") == 0) {
+            else if (strncmp(buffer, "RRV", 3) == 0) {
                 
             }
             else {
