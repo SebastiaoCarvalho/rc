@@ -26,9 +26,12 @@ int main(int argc, char const *argv[])
     if(errcode!=0) /*error*/ exit(1);
     /* Como há parâmetros que podem variar de dimensão, talvez ler tudo 
         primeiro para um buffer e partir depois a msg */
-    strcpy(buffer, "PLG 199326 a 4");
+    strcpy(buffer, "SNG 199326");
     n=sendto(fd,buffer, 128 ,0 , res->ai_addr, res->ai_addrlen);
     if(n==-1) /*error*/ exit(1);
+    n=recvfrom(fd,buffer, 128, 0, (struct sockaddr*)&addr,&res->ai_addrlen);
+    if(n==-1)/*error*/exit(1);
+    printf("Received: %s", buffer);
     // addrlen=sizeof(addr);
     // n=recvfrom(fd,buffer,128,0,
     // (struct sockaddr*)&addr,&addrlen);

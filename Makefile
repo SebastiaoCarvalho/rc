@@ -1,4 +1,4 @@
 all:
 
-	gcc -Wall client.cpp -o client
-	gcc -Wall server.cpp -o server
+	g++ -Wall client.cpp -o client
+	g++ -Wall server.cpp utils.cpp -o server
