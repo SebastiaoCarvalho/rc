@@ -43,23 +43,38 @@ int main(int argc, char const *argv[])
             msgCode[3] = '\0';
             if(n==-1)/*error*/exit(1);
             if (strcmp(msgCode, "SNG") == 0){
+                /* Read PlayerID*/
                 char id[7];
-                // n = recvfrom(fd, id, 1, 0, (struct sockaddr*)&addr, &addrlen);
-                // printf("debug: %d\n", n);
-                // if(n==-1)/*error*/exit(1);
-                // n = recvfrom(fd,id,6,0, (struct sockaddr*)&addr,&addrlen);
                 n = recvfrom(fd, id, 1, 0, (struct sockaddr*)&addr, &addrlen);
                 if(n==-1)/*error*/exit(1);
                 n = recvfrom(fd, id, 6, 0, (struct sockaddr*)&addr,&addrlen);
                 id[6] = '\0';
                 if(n==-1)/*error*/exit(1);
-                printf("read id %s\n", id);
             }
             else if (strcmp(msgCode, "RSG") == 0) {
                 printf("RSG");
             }
             else if (strcmp(msgCode, "PLG") == 0) {
-
+                /* Read PlayerID*/
+                char id[7];
+                n = recvfrom(fd, id, 1, 0, (struct sockaddr*)&addr, &addrlen);
+                if(n==-1)/*error*/exit(1);
+                n = recvfrom(fd, id, 6, 0, (struct sockaddr*)&addr,&addrlen);
+                id[6] = '\0';
+                if(n==-1)/*error*/exit(1);
+                printf("%s", id);
+                /*Read letter*/
+                char letter[2];
+                n = recvfrom(fd, letter, 1, 0, (struct sockaddr*)&addr, &addrlen);
+                if(n==-1)/*error*/exit(1);
+                letter[1] = '\0';
+                printf("%s", letter);
+                /*Read Trial*/
+                char trial[2];
+                n = recvfrom(fd, &trial, 1, 0, (struct sockaddr*)&addr, &addrlen);
+                if(n==-1)/*error*/exit(1);
+                trial[1] = '\0';
+                printf("%s\n", trial);
             }
             else if (strcmp(msgCode, "RLG") == 0) {
 
@@ -85,7 +100,6 @@ int main(int argc, char const *argv[])
             else {
                 printf("Invalid message code");
             }
-            printf("skipped");
         }
         freeaddrinfo(res);
         close(fd);
@@ -97,3 +111,4 @@ int main(int argc, char const *argv[])
         //servertcp();
     } */
 }
+
