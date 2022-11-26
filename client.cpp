@@ -26,7 +26,7 @@ int main(void) {
     hints.ai_family=AF_INET; //IPv4
     hints.ai_socktype=SOCK_DGRAM; //UDP socket
     //DESKTOP-8NS8GE1
-    errcode=getaddrinfo("DESKTOP-8NS8GE1","58001",&hints,&res);
+    errcode=getaddrinfo("127.0.0.1","58004",&hints,&res);
     if(errcode!=0) /*error*/ exit(1);
     
     while(1) {
@@ -41,10 +41,10 @@ int main(void) {
             memcpy(buffer+3, " ", 1);
             memcpy(buffer+4, playerID, 6);
             memcpy(buffer+10, "\n", 1);
-            n = sendto(fd, buffer, 1024, 0, res->ai_addr, res->ai_addrlen);
+            n = sendto(fd, buffer, 128, 0, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
             /* Receive GS with the status, checking if the player can start a game */
-            n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+            n = recvfrom(fd, buffer, 128, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
         }
         if(strcmp(word,"play") == 0 or strcmp(word,"pl") ==0) {
@@ -72,6 +72,7 @@ int main(void) {
             /* Receive status from GS to check if it is a hit, miss, e.t.c */
             n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
+            printf("%s", buffer);
 
         }
         if(strcmp(word,"guess") == 0 or strcmp(word,"gw") ==0) {
@@ -94,12 +95,13 @@ int main(void) {
             memcpy(buffer+42, " ", 1);
             memcpy(buffer+43, newTrial, 1);
             memcpy(buffer+44, "\n", 1);
-            n = sendto(fd, buffer, 1024, 0, res->ai_addr, res->ai_addrlen);
+            n = sendto(fd, buffer, 128, 0, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
             /* Receive status from GS to check if it is a hit, miss, e.t.c */
-            n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+            n = recvfrom(fd, buffer, 128, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
-
+            printf("%s", buffer);
+            
         }
         if(strcmp(word,"scoreboard") == 0 or strcmp(word,"sb") ==0) {
             /* Create message to send to GS */
@@ -156,6 +158,7 @@ int main(void) {
             /* Receive GS with the status, checking if a game is underway */
             n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
+            printf("%s", buffer);
         }
         if(strcmp(word,"exit") == 0) {
             /*Receive Player id form server*/
