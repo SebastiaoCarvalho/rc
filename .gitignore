@@ -1,8 +1,4 @@
-Makefile
 server
-server.cpp
 client
-gamserver.cpp
-testclient.cpp
-utils.cpp
-utils.h
+*.txt
+.vscode

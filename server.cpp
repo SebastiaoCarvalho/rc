@@ -12,24 +12,37 @@
 #include "utils.h"
 #include <string>
 #include <signal.h>
+#include <iostream>
+#include <fstream>
 
 int fd,errcode;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
+std::string fileName;
+std::string port = "58002";
+std::string wordG = "batata";
+bool verbose = false;
 
 int main(int argc, char const *argv[])
 {
-    
+    // Function declarations 
     // void handleCtrlC(int s);
-    
+    void readFlags(int argc, char const *argv[]);
+    void readWord(std::string fileName, std::string * word);
+
     ssize_t n;
+    readFlags(argc, argv);
+    printf("Port: %s, File: %s, Verbose: %d\n", port.c_str(), fileName.c_str(), verbose);
+    readWord(fileName, &wordG);
+    readWord(fileName, &wordG);
+    printf("Word: %s\n", wordG.c_str());
     int pid = fork();
     if (pid == -1) {
         perror("fork");
         exit(1);
     }
-    signal(SIGINT, handleCtrlC);
+    /* signal(SIGINT, handleCtrlC); */
     if (pid > 0)
     {
 
@@ -46,7 +59,7 @@ int main(int argc, char const *argv[])
         n=bind(fd,res->ai_addr, res->ai_addrlen);
         printf("%d\n", errno);
         if(n==-1) /*error*/ exit(1);
-        while (1){
+        while (1) {
             addrlen=sizeof(addr);
             printf("Waiting for message...\n");
             n=recvfrom(fd,buffer, 128, 0, (struct sockaddr*)&addr,&addrlen);
@@ -105,8 +118,8 @@ int main(int argc, char const *argv[])
                     int trial_int = atoi(trial);
                     printf("trial_int: %d\n", trial_int);
                     std::string status;
-                    char word[30];
-                    strcpy(word, "batata");
+                    char word[30]; // TODO : maybe change this to std::string
+                    strcpy(word, wordG.c_str());
                     std::vector<int> pos = getPos(word, letter[0]);
                     if (trial_int + 1 > 9) {
                         status = "OVR";
@@ -162,7 +175,7 @@ int main(int argc, char const *argv[])
                     printf("%s\n", trial);
                     int trial_int = atoi(trial);
                     std::string status;
-                    if (word_str == "batata") {
+                    if (word_str == wordG) {
                         status = "WIN";
                     }
                     else if (trial_int + 1 > 9) {
@@ -227,3 +240,43 @@ int main(int argc, char const *argv[])
     freeaddrinfo(res);
     close(fd);
 } */
+
+void readFlags(int argc, char const *argv[]) {
+    if (argc > 0) {
+        fileName = argv[1];
+
+    }
+    int argn = 1;
+    while (argn < argc) {
+        if (strcmp(argv[argn], "-p") == 0) {
+            if (argn + 1 < argc) {
+                port = argv[argn + 1];
+                argn += 2;
+            }
+            else {
+                printf("Port number not specified");
+                port = "58002";
+            }
+        }
+        else if (strcmp(argv[argn], "-v") == 0) {
+            verbose = true;
+            argn += 1;
+        }
+        else {
+            argn += 1;
+        }
+    }
+}
+
+void readWord(std::string fileName, std::string * word) {
+    std::ifstream file(fileName);
+    std::string line;
+    std::vector<std::string> lines;
+    while (std::getline(file, line)) {
+        lines.push_back(line);
+    }
+    int lineNumber = random(0, lines.size());
+    *word = stringSplit(lines[lineNumber], ' ')[0];
+    std::cout << *word << std::endl;
+    file.close();
+}
