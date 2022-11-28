@@ -49,3 +49,12 @@ std::vector<std::string> stringSplit(std::string s, char delimiter) {
 int random(int min, int max) {
     return min + (rand() % (max - min + 1));
 }
+
+std::string repeat(std::string s, int n) {
+  std::string repeat;
+
+  for (int i = 0; i < n; i++)
+    repeat += s;
+
+  return repeat;
+}
