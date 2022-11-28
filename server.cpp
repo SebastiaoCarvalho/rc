@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <iostream>
 #include <fstream>
+#include <sys/stat.h>
 
 int fd,errcode;
 socklen_t addrlen;
@@ -30,13 +31,13 @@ int main(int argc, char const *argv[])
     // void handleCtrlC(int s);
     void readFlags(int argc, char const *argv[]);
     void readWord(std::string fileName, std::string * word);
+    void startGame(std::string playerID);
+    void makePlay(std::string player, char letter, int trial);
+    void makeGuess(std::string playerID, std::string guess, int trial);
 
     ssize_t n;
     readFlags(argc, argv);
-    printf("Port: %s, File: %s, Verbose: %d\n", port.c_str(), fileName.c_str(), verbose);
-    readWord(fileName, &wordG);
-    readWord(fileName, &wordG);
-    printf("Word: %s\n", wordG.c_str());
+    printf("Port: %s, File: %s, Verbose: %d\n", port.c_str(), fileName.c_str(), verbose);   
     int pid = fork();
     if (pid == -1) {
         perror("fork");
@@ -65,163 +66,80 @@ int main(int argc, char const *argv[])
             n=recvfrom(fd,buffer, 128, 0, (struct sockaddr*)&addr,&addrlen);
             buffer[128] = '\0';
             if(n==-1)/*error*/exit(1);
-            int pid2 = fork();
-            if (pid2 == -1) {
-                perror("fork");
-                exit(1);
-            }
-            if (pid2 > 0)
-            {
-                if (strncmp(buffer, "SNG", 3) == 0) {
+            if (strncmp(buffer, "SNG", 3) == 0) {
                     /* Read PlayerID*/
                     char id[7];
                     memcpy(id, buffer+4, 6);
                     id[6] = '\0';
                     if(n==-1)/*error*/exit(1);
                     printf("PlayerID: %s\n", id);
-                    ssize_t offset = 0;
-                    memcpy(buffer, "RNG ", 4);
-                    offset += 4;
-                    memcpy(buffer + offset, "OK ", 3);
-                    offset += 3;
-                    std::string word = "batata";
-                    size_t wordLen = word.length();
-                    std::string wordLenStr = std::to_string(wordLen);
-                    memcpy(buffer + offset, wordLenStr.c_str(), wordLenStr.length());
-                    offset += wordLenStr.length();
-                    memcpy(buffer + offset, " ", 1);
-                    offset += 1;
-                    int tries = maxErrors(word);
-                    std::string tries_str = std::to_string(tries);
-                    memcpy(buffer + offset, tries_str.c_str() , tries_str.length());
-                    offset += tries_str.length();
-                    memcpy(buffer + offset, "\n\0", 2);
-                    n=sendto(fd,buffer, 128 ,0 , (struct sockaddr*)&addr, addrlen);
+                    startGame(std::string(id));
                 }
-                else if (strncmp(buffer, "PLG", 3) == 0) {
-                    /* Read PlayerID*/
-                    char id[7];
-                    memcpy(id, buffer+4, 6);
-                    id[6] = '\0';
-                    if(n==-1)/*error*/exit(1);
-                    printf("%s\n", id);
-                    /*Read letter*/
-                    char letter[2];
-                    memcpy(letter, buffer+11, 1);
-                    letter[1] = '\0';
-                    printf("%s\n", letter);
-                    /*Read Trial*/
-                    char trial[2];
-                    memcpy(trial, buffer+13, 1);
-                    trial[1] = '\0';
-                    printf("%s\n", trial);
-                    int trial_int = atoi(trial);
-                    printf("trial_int: %d\n", trial_int);
-                    std::string status;
-                    char word[30]; // TODO : maybe change this to std::string
-                    strcpy(word, wordG.c_str());
-                    std::vector<int> pos = getPos(word, letter[0]);
-                    if (trial_int + 1 > 9) {
-                        status = "OVR";
-                    }
-                    else if (pos.size() > 0) {
-                        status = "OK";
-                    }
-                    else {
-                        status = "NOK";
-                    }
-                    memcpy(buffer, "RLG ", 3);
-                    ssize_t offset = 4;
-                    memcpy(buffer + offset, status.c_str(), status.length());
-                    offset += status.length();
-                    memcpy(buffer + offset, " ", 1);
-                    offset += 1;
-                    memcpy(buffer + offset, trial, 1);
-                    offset += 1;
-                    size_t len = pos.size();
-                    if (len > 0)
-                    {
-                        memcpy(buffer + offset, " ", 1);
-                        memcpy(buffer + offset + 1, std::to_string(len).c_str(), std::to_string(len).length());
-                        offset += 1 + std::to_string(len).length();
-                    }
-                    for (size_t i = 0; i < len; i++) {
-                        memcpy(buffer + offset, " ", 1);
-                        std::string pos_str = std::to_string(pos[i]);
-                        memcpy(buffer + offset + 1, pos_str.c_str(), pos_str.length());
-                        offset += pos_str.length() + 1;
-                    }
-                    memcpy(buffer + offset, "\n", 1);
-                    offset += 1;
-                    buffer[offset] = '\0';
-                    n=sendto(fd,buffer, 128 ,0 , (struct sockaddr*)&addr, addrlen);
+            else if (strncmp(buffer, "PLG", 3) == 0) {
+                /* Read PlayerID*/
+                char id[7];
+                memcpy(id, buffer+4, 6);
+                id[6] = '\0';
+                if(n==-1)/*error*/exit(1);
+                printf("%s\n", id);
+                /*Read letter*/
+                char letter[2];
+                memcpy(letter, buffer+11, 1);
+                letter[1] = '\0';
+                printf("%s\n", letter);
+                /*Read Trial*/
+                char trial[2];
+                memcpy(trial, buffer+13, 1);
+                trial[1] = '\0';
+                printf("%s\n", trial);
+                int trial_int = atoi(trial);
+                printf("trial_int: %d\n", trial_int);
+                makePlay(std::string(id), letter[0], trial_int);
 
-                }
-                else if (strncmp(buffer, "PWG", 3) == 0) {
-                    /* Read PlayerID*/
-                    char id[7];
-                    memcpy(id, buffer+4, 6);
-                    id[6] = '\0';
-                    if(n==-1)/*error*/exit(1);
-                    printf("%s\n", id);
-                    char word[30];
-                    memcpy(word, buffer+11, 30);
-                    word[30] = '\0';
-                    std::string word_str = word;
-                    printf("%s\n", word);
-                    char trial[2];
-                    memcpy(trial, buffer+42, 1);
-                    trial[1] = '\0';
-                    printf("%s\n", trial);
-                    int trial_int = atoi(trial);
-                    std::string status;
-                    if (word_str == wordG) {
-                        status = "WIN";
-                    }
-                    else if (trial_int + 1 > 9) {
-                        status = "OVR";
-                    }
-                    else {
-                        status = "NOK";
-                    }
-                    memcpy(buffer, "RWG ", 4);
-                    ssize_t offset = 4;
-                    memcpy(buffer + offset, status.c_str(), status.length());
-                    offset += status.length();
-                    memcpy(buffer + offset, " ", 1);
-                    offset += 1;
-                    memcpy(buffer + offset, trial, 1);
-                    offset += 1;
-                    memcpy(buffer + offset, "\n\0", 2);
-                    n=sendto(fd,buffer, 128 ,0 , (struct sockaddr*)&addr, addrlen);
-                    if (n==-1)/*error*/ exit(1);
+            }
+            else if (strncmp(buffer, "PWG", 3) == 0) {
+                /* Read PlayerID*/
+                char id[7];
+                memcpy(id, buffer+4, 6);
+                id[6] = '\0';
+                if(n==-1)/*error*/exit(1);
+                printf("%s\n", id);
+                char word[30];
+                memcpy(word, buffer+11, 30);
+                word[30] = '\0';
+                std::string word_str = word;
+                printf("%s\n", word);
+                char trial[2];
+                memcpy(trial, buffer+42, 1);
+                trial[1] = '\0';
+                printf("%s\n", trial);
+                int trial_int = atoi(trial);
+                makeGuess(std::string(id), word_str, trial_int);
 
-                }
-                else if (strncmp(buffer, "QUT", 3) == 0) {
-                    /* Read PlayerID*/
-                    char id[7];
-                    memcpy(id, buffer+4, 6);
-                    id[6] = '\0';
-                    if(n==-1)/*error*/exit(1);
-                    printf("%s\n", id);
-                    memcpy(buffer, "RQT ", 4);
-                    ssize_t offset = 4;
-                    memcpy(buffer + offset, "OK", 2);
-                    offset += 2;
-                    memcpy(buffer + offset, "\n\0", 2);
-                    n=sendto(fd,buffer, 128 ,0 , (struct sockaddr*)&addr, addrlen);
-                    if (n==-1)/*error*/ exit(1);
-                }      
-                else if (strncmp(buffer, "REV", 3) == 0) {
-                    
-                }
-                else if (strncmp(buffer, "RRV", 3) == 0) {
-                    
-                }
-                else {
-                    printf("Invalid message code");
-                }
-                exit(0);
+            }
+            else if (strncmp(buffer, "QUT", 3) == 0) {
+                /* Read PlayerID*/
+                char id[7];
+                memcpy(id, buffer+4, 6);
+                id[6] = '\0';
+                if(n==-1)/*error*/exit(1);
+                printf("%s\n", id);
+                memcpy(buffer, "RQT ", 4);
+                ssize_t offset = 4;
+                memcpy(buffer + offset, "OK", 2);
+                offset += 2;
+                memcpy(buffer + offset, "\n\0", 2);
+                n=sendto(fd,buffer, 128 ,0 , (struct sockaddr*)&addr, addrlen);
+                if (n==-1)/*error*/ exit(1);
+            }      
+            else if (strncmp(buffer, "REV", 3) == 0) {
+                
+            }
+            else if (strncmp(buffer, "RRV", 3) == 0) {
+                
+            }
+            else {
+                printf("Invalid message code");
             }
         }
         freeaddrinfo(res);
@@ -280,3 +198,104 @@ void readWord(std::string fileName, std::string * word) {
     std::cout << *word << std::endl;
     file.close();
 }
+
+void createGameFile(std::string playerID, std::string word) {
+    std::ofstream file;
+    file.open("GAMES/GAME_" + playerID);
+    file << word + " " + word + ".png" << std::endl;
+    file.close();
+}
+
+int verifyExistence(std::string filename) {
+    std::ifstream file(filename);
+    if (file.good()) {
+        file.close();
+        return 1;
+    }
+    else {
+        file.close();
+        return 0;
+    }
+}
+
+void startGame(std::string playerID) {
+    std::string word;
+    readWord(fileName, &word);
+    wordG = word;
+    std::string status;
+    std::string message;
+    if (verifyExistence("GAMES/GAME_" + playerID)) {
+        status = "NOK";
+        message = "RSG " + status;
+    }
+    else {
+        status = "OK";
+        createGameFile(playerID, word);
+        std::string letterNumber = std::to_string(word.length());
+        int errorsN = maxErrors(wordG);
+        std::string maxErrors = std::to_string(errorsN);
+        message = "RSG " + status + " " + letterNumber + " " + maxErrors + "\n";
+    }
+    sendto(fd, message.c_str(), message.length(), 0, (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n = 
+}
+
+void appendFile(std::string filename, std::string text) {
+    std::ofstream file;
+    file.open(filename, std::ios::app);
+    file << text;
+    file.close();
+}
+
+void savePlay(std::string playerID, std::string status, std::string play) {
+    std::string filename = "GAMES/GAME_" + playerID;
+    appendFile(filename, status + " " + play + "\n");
+}
+
+void makePlay(std::string playerID, char letter, int trial) {
+    std::string status;
+    char word[30]; // TODO : maybe change this to std::string
+    strcpy(word, wordG.c_str());
+    printf("%s\n", word);
+    std::vector<int> pos = getPos(word, letter);
+    int maxErrorsN = maxErrors(wordG);
+    if (pos.size() > 0) {
+        status = "OK";
+    }
+    else if (trial + 1 > maxErrorsN) { // TODO : fix to see only errors
+        status = "OVR";
+    }
+    else {
+        status = "NOK";
+    }
+    std::string message;
+    message = "RLG " + status + " " + std::to_string(trial);
+    size_t len = pos.size();
+    if (len > 0)
+    {
+        message += " " + std::to_string(pos.size());
+    }
+    for (size_t i = 0; i < len; i++) {
+        message += " " + std::to_string(pos[i]);
+    }
+    message += "\n";
+    savePlay(playerID, "T", std::string(1, letter));
+    sendto(fd,message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n = 
+}
+
+void makeGuess(std::string playerID, std::string guess, int trial) {
+    std::string status;
+    if (guess == wordG) {
+        status = "WIN";
+    }
+    else if (trial + 1 > 9) {
+        status = "OVR";
+    }
+    else {
+        status = "NOK";
+    }
+    std::string message;
+    message = "RWG " + status + " " + std::to_string(trial) + "\n";
+    savePlay(playerID, "G", guess);
+    sendto(fd, message.c_str(), message.length() , 0, (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n =
+}
+
