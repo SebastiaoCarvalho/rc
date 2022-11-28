@@ -126,10 +126,10 @@ int main(void) {
             memcpy(buffer+10, " ", 1);
             memcpy(buffer+11, letter, 1);
             memcpy(buffer+12, " ", 1);
-            memcpy(buffer+12+trialStr.length(), trialStr.c_str(), trialStr.length());
-            memcpy(buffer+12+trialStr.length()+1, "\n", 1);
+            memcpy(buffer+13, trialStr.c_str(), trialStr.length());
+            memcpy(buffer+13+trialStr.length(), "\n", 1);
 
-            //printf("%s", buffer);
+            printf("%s", buffer);
             //printf("%d",(int)strlen(buffer));
             n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
@@ -137,7 +137,7 @@ int main(void) {
             /* Receive status from GS to check if it is a hit, miss, e.t.c */
             n = recvfrom(fd, buffer, strlen(buffer), 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
-            //printf("%s %d", buffer, (int)strlen(buffer));
+            printf("%s %d", buffer, (int)strlen(buffer));
             
             /* Split the buffer information into different words */
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
@@ -222,10 +222,10 @@ int main(void) {
             memcpy(buffer+3, " ", 1);
             memcpy(buffer+4, playerID.c_str(), 6);
             memcpy(buffer+10, " ", 1);
-            memcpy(buffer+10+guessedWord.length(), guessedWord.c_str(), guessedWord.length());
-            memcpy(buffer+10+guessedWord.length()+1, " ", 1);
-            memcpy(buffer+10+guessedWord.length()+2, trialStr.c_str(), 1);
-            memcpy(buffer+10+guessedWord.length()+3, "\n", 1);
+            memcpy(buffer+11, guessedWord.c_str(), guessedWord.length());
+            memcpy(buffer+11+guessedWord.length(), " ", 1);
+            memcpy(buffer+11+guessedWord.length()+1, trialStr.c_str(), trialStr.length());
+            memcpy(buffer+11+guessedWord.length()+1+trialStr.length(), "\n", 1);
             n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
             /* Receive status from GS to check if it is a hit, miss, e.t.c */
