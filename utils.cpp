@@ -58,3 +58,14 @@ std::string repeat(std::string s, int n) {
 
   return repeat;
 }
+
+// remove \n from strings
+std::string strip(std::string s) {
+  std::string stripped;
+
+  for (size_t i = 0; i < s.length(); i++)
+    if (s[i] != '\n')
+      stripped += s[i];
+
+  return stripped;
+}

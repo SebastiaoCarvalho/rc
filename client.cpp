@@ -31,7 +31,7 @@ int main(void) {
     hints.ai_family=AF_INET; //IPv4
     hints.ai_socktype=SOCK_DGRAM; //UDP socket
     //DESKTOP-8NS8GE1
-    errcode=getaddrinfo("tejo.tecnico.ulisboa.pt","58011",&hints,&res);
+    errcode=getaddrinfo("127.0.0.1","58002",&hints,&res);
     if(errcode!=0) /*error*/ exit(1);
 
     while(1) {
@@ -61,12 +61,13 @@ int main(void) {
             memcpy(buffer+3, " ", 1);
             memcpy(buffer+4, playerID.c_str(), 6);
             memcpy(buffer+10, "\n", 1);
-            
+            printf("Sending %d bytes as %s to GS:\n",strlen(buffer),  buffer);
             n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
             /* Receive GS with the status, checking if the player can start a game */
-            n = recvfrom(fd, buffer, strlen(buffer), 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+            n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
+            buffer[n - 1] = '\0';
             printf("%s", buffer);
 
             /* Split the buffer information into different words */
@@ -79,12 +80,11 @@ int main(void) {
                 wordSpaces[wordSpaces.length()-1] = '\0';
                 currentWord = wordSpaces;
                 /* Remove '\n' from last maxErrors (since the server replies with \n at the end)*/
-                std::string maxErrorsStr = parameters[3].substr(0, parameters[3].length()-1);
                 
                 /* Declare max errors */
                 maxErrors = stoi(parameters[3]);
                 
-                printf("New game started. Guess %s letter word: %s. You have %s attempts.\n", parameters[2].c_str(), wordSpaces.c_str(), maxErrorsStr.c_str());
+                printf("New game started. Guess %s letter word: %s. You have %s attempts.\n", parameters[2].c_str(), wordSpaces.c_str(), parameters[3].c_str());
             }
             else {
                 printf("You can't start a new game. You have to wait for the current game to finish.\n");
@@ -135,8 +135,9 @@ int main(void) {
             if (n == -1) /*error*/ exit(1);
             //QUANDO BUFFER RECEBE, RECEBE DADOS COM LIXO PORQUE CASO SEJA UM NOP SO ESCREVE NOS PRIMEIROS BITS
             /* Receive status from GS to check if it is a hit, miss, e.t.c */
-            n = recvfrom(fd, buffer, strlen(buffer), 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+            n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
+            buffer[n - 1] = '\0';
             printf("%s %d", buffer, (int)strlen(buffer));
             
             /* Split the buffer information into different words */
@@ -166,7 +167,7 @@ int main(void) {
                         currentWord[i] = letter[0];
                     }
                 }
-                trial += 1;
+                trial = 1;
                 printf("Well done! You gessed the right word: %s\n", currentWord.c_str());
             }
             else if (strcmp(parameters[1].c_str(), "DUP") == 0) {
@@ -181,9 +182,8 @@ int main(void) {
                 //DAR PRINT À PALVRA CERTA?
                 //Como parar o jogo?
                 printf("You have exceeded the maximum number of errors. You've lost the game\n"); 
-                freeaddrinfo(res);
+                trial = 1;
                 close(fd);
-                exit(0);
             }
             else if (strcmp(parameters[1].c_str(), "INV") == 0) {
                 //VER O QUE É ISTO

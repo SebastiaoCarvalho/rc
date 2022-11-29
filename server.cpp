@@ -66,73 +66,54 @@ int main(int argc, char const *argv[])
         while (1) {
             addrlen=sizeof(addr);
             printf("Waiting for message...\n");
+            memset(buffer,0,128);
             n=recvfrom(fd,buffer, 128, 0, (struct sockaddr*)&addr,&addrlen);
-            buffer[128] = '\0';
+            printf("Received %d bytes, as %s\n", n, buffer);
             if(n==-1)/*error*/exit(1);
+            buffer[128] = '\0';
+            std::string message = buffer;
+            message = strip(message);
+            std::vector<std::string> tokens = stringSplit(message, ' ');
             if (strncmp(buffer, "SNG", 3) == 0) {
-                    /* Read PlayerID*/
-                    char id[7];
-                    memcpy(id, buffer+4, 6);
-                    id[6] = '\0';
-                    if(n==-1)/*error*/exit(1);
-                    printf("PlayerID: %s\n", id);
-                    startGame(std::string(id));
-                }
+                /* Read PlayerID*/
+                std::string playerID = tokens[1];
+                printf("PlayerID: %s\n", playerID.c_str());
+                startGame(playerID);
+            }
             else if (strncmp(buffer, "PLG", 3) == 0) {
                 /* Read PlayerID*/
-                char id[7];
-                memcpy(id, buffer+4, 6);
-                id[6] = '\0';
-                if(n==-1)/*error*/exit(1);
-                printf("%s\n", id);
+                std::string playerID = tokens[1];
+                printf("%s\n", playerID.c_str());
                 /*Read letter*/
-                char letter[2];
-                memcpy(letter, buffer+11, 1);
-                letter[1] = '\0';
-                printf("%s\n", letter);
+                char letter = tokens[2][0];
+                printf("%c\n", letter);
                 /*Read Trial*/
-                char trial[2];
-                memcpy(trial, buffer+13, 1);
-                trial[1] = '\0';
-                printf("%s\n", trial);
-                int trial_int = atoi(trial);
+                std::string trial = tokens[3];
+                printf("%s\n", trial.c_str());
+                int trial_int = atoi(trial.c_str());
                 printf("trial_int: %d\n", trial_int);
-                makePlay(std::string(id), letter[0], trial_int);
+                makePlay(playerID, letter, trial_int);
 
             }
             else if (strncmp(buffer, "PWG", 3) == 0) {
                 /* Read PlayerID*/
-                char id[7];
-                memcpy(id, buffer+4, 6);
-                id[6] = '\0';
-                if(n==-1)/*error*/exit(1);
-                printf("%s\n", id);
-                char word[30];
-                memcpy(word, buffer+11, 30);
-                word[30] = '\0';
-                std::string word_str = word;
-                printf("%s\n", word);
-                char trial[2];
-                memcpy(trial, buffer+42, 1);
-                trial[1] = '\0';
-                printf("%s\n", trial);
-                int trial_int = atoi(trial);
-                makeGuess(std::string(id), word_str, trial_int);
+                std::string playerID = tokens[1];
+                printf("%s\n", playerID.c_str());
+                std::string word = tokens[2];
+                printf("%s\n", word.c_str());
+                /*Read Trial*/
+                std::string trial = tokens[3];
+                printf("%s\n", trial.c_str());
+                int trial_int = atoi(trial.c_str());
+                makeGuess(playerID, word, trial_int);
 
             }
             else if (strncmp(buffer, "QUT", 3) == 0) {
                 /* Read PlayerID*/
-                char id[7];
-                memcpy(id, buffer+4, 6);
-                id[6] = '\0';
-                if(n==-1)/*error*/exit(1);
-                printf("%s\n", id);
-                memcpy(buffer, "RQT ", 4);
-                ssize_t offset = 4;
-                memcpy(buffer + offset, "OK", 2);
-                offset += 2;
-                memcpy(buffer + offset, "\n\0", 2);
-                n=sendto(fd,buffer, 128 ,0 , (struct sockaddr*)&addr, addrlen);
+                std::string playerID = tokens[1];
+                printf("%s\n", playerID.c_str());
+                message = "OK " + playerID + "\n";
+                n=sendto(fd, message.c_str(), 128 ,0 , (struct sockaddr*)&addr, addrlen);
                 if (n==-1)/*error*/ exit(1);
             }      
             else if (strncmp(buffer, "REV", 3) == 0) {
@@ -312,14 +293,17 @@ void makePlay(std::string playerID, char letter, int trial) {
     std::vector<int> pos = getPos(word, letter);
     int maxErrorsN = maxErrors(wordG);
     int errorsMade = getErrorsMade(playerID);
-    if (pos.size() > 0) {
-        status = "OK";
+    if (! verifyExistence("GAMES/GAME_" + playerID)) {
+        status = "ERR";
     }
     else if (! isTrialValid(playerID, trial)) {
         status = "INV";
     }
     else if (isDup(playerID, std::string(1, letter))) {
         status = "DUP";
+    }
+    else if (pos.size() > 0) {
+        status = "OK";
     }
     else if (errorsMade + 1 > maxErrorsN) { // TODO : fix to see only errors
         status = "OVR";
