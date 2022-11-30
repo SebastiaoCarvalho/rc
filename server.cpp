@@ -17,6 +17,8 @@
 #include <fstream>
 #include <sys/stat.h>
 
+// TODO : review global vars like fileName and wordG
+
 int fd,errcode;
 socklen_t addrlen;
 struct addrinfo hints,*res;
@@ -68,7 +70,6 @@ int main(int argc, char const *argv[])
             printf("Waiting for message...\n");
             memset(buffer,0,128);
             n=recvfrom(fd,buffer, 128, 0, (struct sockaddr*)&addr,&addrlen);
-            printf("Received %d bytes, as %s\n", n, buffer);
             if(n==-1)/*error*/exit(1);
             buffer[128] = '\0';
             std::string message = buffer;
@@ -190,18 +191,6 @@ void createGameFile(std::string playerID, std::string word) {
     file.close();
 }
 
-int verifyExistence(std::string filename) {
-    std::ifstream file(filename);
-    if (file.good()) {
-        file.close();
-        return 1;
-    }
-    else {
-        file.close();
-        return 0;
-    }
-}
-
 void bootServer() {
     std::vector<std::string> files = listDirectory("GAMES");
     size_t size = files.size();
@@ -213,19 +202,27 @@ void bootServer() {
     }
 }
 
+int hasGame(std::string playerId) {
+    return verifyExistence("GAMES/GAME_" + playerId) && getLineNumber("GAMES/GAME_" + playerId) > 1;
+}
 void startGame(std::string playerID) {
     std::string word;
-    readWord(fileName, &word);
-    wordG = word;
     std::string status;
     std::string message;
-    if (verifyExistence("GAMES/GAME_" + playerID)) {
+    if (hasGame(playerID)) {
         status = "NOK";
         message = "RSG " + status + "\n";
     }
     else {
         status = "OK";
-        createGameFile(playerID, word);
+        if (! verifyExistence("GAMES/GAME_" + playerID)) { // get new word from word file
+            readWord(fileName, &word); 
+            createGameFile(playerID, word);
+        }
+        else { // get word from game file    
+            word = stringSplit(getLine("GAMES/GAME_" + playerID, 1), ' ')[0]; 
+        }
+        wordG = word;
         std::string letterNumber = std::to_string(word.length());
         int errorsN = maxErrors(wordG);
         std::string maxErrors = std::to_string(errorsN);
@@ -241,9 +238,9 @@ void appendFile(std::string filename, std::string text) {
     file.close();
 }
 
-void savePlay(std::string playerID, std::string status, std::string hit, std::string play) {
+void savePlay(std::string playerID, std::string status, std::string hit, std::string play, int missing) {
     std::string filename = "GAMES/GAME_" + playerID;
-    appendFile(filename, status + " " + hit + " " + play + "\n");
+    appendFile(filename, status + " " + hit + " " + play + " " + std::to_string(missing) + "\n");
 }
 
 int getErrorsMade(std::string playerID) {
@@ -260,16 +257,19 @@ int getErrorsMade(std::string playerID) {
     return errors;
 }
 
-int isTrialValid(std::string playerID, int trial) {
-    std::ifstream file("GAMES/GAME_" + playerID);
-    std::string line;
-    std::getline(file, line); // skip first line
-    int line_number = 0;
-    while (std::getline(file, line)) {
-        line_number++;
+int getMissingNumber(std::string playerId) {
+    if (! hasGame(playerId)) {
+        return -1;
     }
+    std::string line = getLine("GAMES/GAME_" + playerId, getLineNumber("GAMES/GAME_" + playerId));
+    std::string missing = stringSplit(line, ' ')[3];
+    return atoi(missing.c_str());
+}
+
+int isTrialValid(std::string playerID, int trial) {
+    int line_number = getLineNumber("GAMES/GAME_" + playerID);
     printf("line_number: %d\n", line_number);
-    return trial == line_number + 1;
+    return trial == line_number;
 }
 
 int isDup(std::string playerID, std::string play) {
@@ -293,6 +293,8 @@ void makePlay(std::string playerID, char letter, int trial) {
     std::vector<int> pos = getPos(word, letter);
     int maxErrorsN = maxErrors(wordG);
     int errorsMade = getErrorsMade(playerID);
+    int missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : wordG.length();
+    printf("missing: %d\n", missing);
     if (! verifyExistence("GAMES/GAME_" + playerID)) {
         status = "ERR";
     }
@@ -302,10 +304,13 @@ void makePlay(std::string playerID, char letter, int trial) {
     else if (isDup(playerID, std::string(1, letter))) {
         status = "DUP";
     }
+    else if (missing - pos.size() == 0) {
+        status = "WIN";
+    }
     else if (pos.size() > 0) {
         status = "OK";
     }
-    else if (errorsMade + 1 > maxErrorsN) { // TODO : fix to see only errors
+    else if (errorsMade + 1 > maxErrorsN) { 
         status = "OVR";
     }
     else {
@@ -314,20 +319,20 @@ void makePlay(std::string playerID, char letter, int trial) {
     std::string message;
     message = "RLG " + status + " " + std::to_string(trial);
     size_t len = pos.size();
-    if (len > 0)
-    {
+    if (status == "OK") {
         message += " " + std::to_string(pos.size());
-    }
-    for (size_t i = 0; i < len; i++) {
-        message += " " + std::to_string(pos[i] + 1);
+        for (size_t i = 0; i < len; i++) {
+            message += " " + std::to_string(pos[i] + 1);
+        }
     }
     message += "\n";
     if (status == "OK" || status == "WIN") {
-        savePlay(playerID, "T", "H", std::string(1, letter));
+        savePlay(playerID, "T", "H", std::string(1, letter), missing - pos.size());
     }
-    else {
-        savePlay(playerID, "T", "M", std::string(1, letter));
+    else if (status == "NOK") {
+        savePlay(playerID, "T", "M", std::string(1, letter), missing - pos.size());
     }
+    printf("%s", message.c_str());
     sendto(fd,message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n = 
 }
 
@@ -335,6 +340,7 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     std::string status;
     int maxErrorsN = maxErrors(wordG);
     int errorsMade = getErrorsMade(playerID);
+    int missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : wordG.length();
     if (guess == wordG) {
         status = "WIN";
     }
@@ -347,10 +353,10 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     std::string message;
     message = "RWG " + status + " " + std::to_string(trial) + "\n";
     if (status == "WIN") {
-        savePlay(playerID, "G", "H", guess);
+        savePlay(playerID, "G", "H", guess, 0);
     }
-    else {
-        savePlay(playerID, "G", "M", guess);
+    else if (status == "NOK") {
+        savePlay(playerID, "G", "M", guess, missing);
     }
     sendto(fd, message.c_str(), message.length() , 0, (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n =
 }
