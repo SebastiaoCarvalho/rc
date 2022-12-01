@@ -69,3 +69,28 @@ std::string strip(std::string s) {
 
   return stripped;
 }
+
+std::string getDateFormatted(tm *ltm) {
+    std::string year = std::to_string(1900 + ltm->tm_year);
+    std::string month = std::to_string(1 + ltm->tm_mon);
+    if (month.length() == 1) {
+        month = "0" + month;
+    }
+    std::string day = std::to_string(ltm->tm_mday);
+    if (day.length() == 1) {
+        day = "0" + day;
+    }
+    std::string hour = std::to_string(ltm->tm_hour);
+    if (hour.length() == 1) {
+        hour = "0" + hour;
+    }
+    std::string min = std::to_string(ltm->tm_min);
+    if (min.length() == 1) {
+        min = "0" + min;
+    }
+    std::string sec = std::to_string(ltm->tm_sec);
+    if (sec.length() == 1) {
+        sec = "0" + sec;
+    }
+    return year + month + day + hour + min + sec;
+}

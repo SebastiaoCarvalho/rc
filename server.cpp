@@ -17,7 +17,14 @@
 #include <fstream>
 #include <sys/stat.h>
 
-// TODO : review global vars like fileName and wordG
+// TODO : 
+// review global vars like fileName and wordG
+// Socket response
+// handle signals
+// handle errors
+// handle exits freeing stuff
+// ovr before or after
+// maybe set seed to start as random always
 
 int fd,errcode;
 socklen_t addrlen;
@@ -56,6 +63,13 @@ int main(int argc, char const *argv[])
         // child process
         fd=socket(AF_INET,SOCK_DGRAM,0); //UDP socket
         if(fd==-1) /*error*/exit(1);
+        // set socket timer
+        /* struct timeval tv;
+        tv.tv_sec = 10;
+        tv.tv_usec = 0;
+        if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
+            perror("Error");
+        } */
         memset(&hints,0,sizeof hints);
         hints.ai_family=AF_INET; // IPv4
         hints.ai_socktype=SOCK_DGRAM; // UDP socket
@@ -231,16 +245,21 @@ void startGame(std::string playerID) {
     sendto(fd, message.c_str(), message.length(), 0, (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n = 
 }
 
-void appendFile(std::string filename, std::string text) {
-    std::ofstream file;
-    file.open(filename, std::ios::app);
-    file << text;
-    file.close();
-}
-
 void savePlay(std::string playerID, std::string status, std::string hit, std::string play, int missing) {
     std::string filename = "GAMES/GAME_" + playerID;
     appendFile(filename, status + " " + hit + " " + play + " " + std::to_string(missing) + "\n");
+}
+
+void storeGame(std::string playerID, std::string status) {
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+    std::string timeStamp = getDateFormatted(ltm);
+    std::string filename = timeStamp + "_" + status;
+    int n = moveFile("GAMES/GAME_" + playerID, "GAMES/" + playerID, filename);
+    if (n != 0) {
+        std::cout << "Error renaming file" << std::endl;
+        std::cout << "Error code: " << errno << std::endl;
+    }
 }
 
 int getErrorsMade(std::string playerID) {
@@ -331,6 +350,12 @@ void makePlay(std::string playerID, char letter, int trial) {
     }
     else if (status == "NOK") {
         savePlay(playerID, "T", "M", std::string(1, letter), missing - pos.size());
+    }
+    if (status == "WIN") {
+        storeGame(playerID, "W");
+    }
+    else if (status == "OVR") {
+        storeGame(playerID, "F");
     }
     printf("%s", message.c_str());
     sendto(fd,message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n = 

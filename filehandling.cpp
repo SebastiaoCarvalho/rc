@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <vector>
 #include <fstream>
+#include <sys/stat.h>
 #include "filehandling.h"
 
 // delete file given his name
@@ -61,4 +62,19 @@ std::string getLine(std::string filename, int lineNumber) {
         line_number++;
     }
     return NULL;
+}
+
+void appendFile(std::string filename, std::string text) {
+    std::ofstream file;
+    file.open(filename, std::ios::app);
+    file << text;
+    file.close();
+}
+
+int moveFile(std::string filename, std::string newDir, std::string newName) {
+    if (! verifyExistence(newDir)) {
+        mkdir(newDir.c_str(), 0777);
+    }
+    std::string newFilename = newDir + "/" + newName;
+    return rename(filename.c_str(), newFilename.c_str()) == 0;
 }
