@@ -92,5 +92,5 @@ std::string getDateFormatted(tm *ltm) {
     if (sec.length() == 1) {
         sec = "0" + sec;
     }
-    return year + month + day + hour + min + sec;
+    return year + month + day + "_" + hour + min + sec;
 }

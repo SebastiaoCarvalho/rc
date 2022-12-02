@@ -24,9 +24,11 @@
 // handle errors
 // handle exits freeing stuff
 // ovr before or after
+// wordG remove
 // maybe set seed to start as random always
 
-int fd,errcode;
+struct sigaction act;
+int fd, newfd, errcode;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
@@ -45,6 +47,7 @@ int main(int argc, char const *argv[])
     void makePlay(std::string player, char letter, int trial);
     void makeGuess(std::string playerID, std::string guess, int trial);
     void bootServer();
+    std::string getScoreBoard();
 
     ssize_t n;
     readFlags(argc, argv);
@@ -145,10 +148,53 @@ int main(int argc, char const *argv[])
         close(fd);
         return 0;
     }
-    else
-    {
-        // parent process
-        //servertcp();
+    else {
+
+        char buffer[129];
+        char *ptr;
+        int ret, nw;
+        act.sa_handler=SIG_IGN;
+        if(sigaction(SIGCHLD,&act,NULL)==-1)/*error*/exit(1);
+        if((fd=socket(AF_INET,SOCK_STREAM,0))==-1)exit(1);//error
+        memset(&hints,0,sizeof hints);
+        hints.ai_family=AF_INET;//IPv4
+        hints.ai_socktype=SOCK_STREAM;//TCP socket
+        hints.ai_flags=AI_PASSIVE;
+        if ((ret=getaddrinfo(NULL, port.c_str(), &hints, &res))!=0)/*error*/exit(1);
+        if (bind(fd,res->ai_addr,res->ai_addrlen)==-1)/*error*/exit(1);
+        if (listen(fd,5)==-1)/*error*/exit(1);
+        freeaddrinfo(res);//frees the memory allocated by getaddrinfo (no longer needed)
+
+        while(1) {
+            printf("Waiting for connection...\n");
+            memset(&hints,0,sizeof hints);
+            addrlen=sizeof(addr);
+            do newfd=accept(fd,(struct sockaddr*)&addr,&addrlen);//wait for a connection
+            while(newfd==-1&&errno==EINTR);
+            if(newfd==-1)/*error*/exit(1);
+            if((pid=fork())==-1)/*error*/exit(1);
+            else if(pid==0) {//child process
+                close(fd);
+                while((n=read(newfd,buffer,128))!=0) {
+                    if(n==-1)/*error*/exit(1);
+                }
+                buffer[128] = '\0';
+                std::string message = buffer;
+                message = strip(message);
+                std::vector<std::string> tokens = stringSplit(message, ' ');
+                if (strncmp(buffer, "GSB", 3) == 0) {
+                    printf("%s", getScoreBoard().c_str());
+                }
+                /* while(n>0) {
+                        if((nw=write(newfd,ptr,n))<=0) exit(1);
+                        n-=nw; ptr+=nw;
+                } */
+            close(newfd); exit(0);
+            }
+            //parent process
+            do ret=close(newfd);while(ret==-1&&errno==EINTR);
+            if(ret==-1)/*error*/exit(1);
+        }
     }
 }
 
@@ -250,18 +296,6 @@ void savePlay(std::string playerID, std::string status, std::string hit, std::st
     appendFile(filename, status + " " + hit + " " + play + " " + std::to_string(missing) + "\n");
 }
 
-void storeGame(std::string playerID, std::string status) {
-    time_t now = time(0);
-    tm *ltm = localtime(&now);
-    std::string timeStamp = getDateFormatted(ltm);
-    std::string filename = timeStamp + "_" + status;
-    int n = moveFile("GAMES/GAME_" + playerID, "GAMES/" + playerID, filename);
-    if (n != 0) {
-        std::cout << "Error renaming file" << std::endl;
-        std::cout << "Error code: " << errno << std::endl;
-    }
-}
-
 int getErrorsMade(std::string playerID) {
     std::ifstream file("GAMES/GAME_" + playerID);
     std::string line;
@@ -285,6 +319,40 @@ int getMissingNumber(std::string playerId) {
     return atoi(missing.c_str());
 }
 
+void storeGame(std::string playerID, std::string status) {
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+    std::string timeStamp = getDateFormatted(ltm);
+    std::string filename = timeStamp + "_" + status;
+    int n = moveFile("GAMES/GAME_" + playerID, "GAMES/" + playerID, filename);
+    if (n != 0) {
+        std::cout << "Error renaming file" << std::endl;
+        std::cout << "Error code: " << errno << std::endl;
+    }
+}
+
+void saveScore(std::string playerID) {
+    std::string filename = "GAMES/GAME_" + playerID;
+    std::string word = stringSplit(getLine(filename, 1), ' ')[0];
+    int errors = maxErrors(word);
+    int trials = getLineNumber(filename) - 1;
+    int errorsMade = getErrorsMade(playerID);
+    int succ = trials - errorsMade;
+    //int score = (errors - errorsMade) * 100 / errors;
+    int score = (int) ((errors/trials) * 11);
+    printf("Score: %d\n", score);
+    std::string scoreS = std::to_string(score);
+    while (scoreS.length() < 3) {
+        scoreS = "0" + scoreS;
+    }
+    std::ofstream file;
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+    std:: string scoreFilename = scoreS+ "_" + playerID + "_" + getDateFormatted(ltm);
+    file.open("SCORES/" + scoreFilename);
+    file << scoreS << " " << playerID << " " << word << " " << succ << " " << trials << std::endl;
+}
+
 int isTrialValid(std::string playerID, int trial) {
     int line_number = getLineNumber("GAMES/GAME_" + playerID);
     printf("line_number: %d\n", line_number);
@@ -302,6 +370,18 @@ int isDup(std::string playerID, std::string play) {
         }
     }
     return 0;
+}
+
+std::string getScoreBoard() {
+    std::string scoreboard = "";
+    std::vector<std::string> files = listDirectory("SCORES");
+    size_t size = files.size();
+    for (size_t i = 0; i < size && i < 10; i++) {
+        std::string line = getLine("SCORES/" + files[i], 1);
+        std::vector<std::string> words = stringSplit(line, ' ');
+        scoreboard += words[1] + " " + std::to_string(words[2].length()) + " " + words[4] + "\n";
+    }
+    return scoreboard;
 }
 
 void makePlay(std::string playerID, char letter, int trial) {
@@ -323,14 +403,14 @@ void makePlay(std::string playerID, char letter, int trial) {
     else if (isDup(playerID, std::string(1, letter))) {
         status = "DUP";
     }
+    else if (errorsMade + 1 > maxErrorsN) { 
+        status = "OVR";
+    }
     else if (missing - pos.size() == 0) {
         status = "WIN";
     }
     else if (pos.size() > 0) {
         status = "OK";
-    }
-    else if (errorsMade + 1 > maxErrorsN) { 
-        status = "OVR";
     }
     else {
         status = "NOK";
@@ -352,6 +432,7 @@ void makePlay(std::string playerID, char letter, int trial) {
         savePlay(playerID, "T", "M", std::string(1, letter), missing - pos.size());
     }
     if (status == "WIN") {
+        saveScore(playerID);
         storeGame(playerID, "W");
     }
     else if (status == "OVR") {
@@ -379,9 +460,14 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     message = "RWG " + status + " " + std::to_string(trial) + "\n";
     if (status == "WIN") {
         savePlay(playerID, "G", "H", guess, 0);
+        saveScore(playerID);
+        storeGame(playerID, "W");
     }
     else if (status == "NOK") {
         savePlay(playerID, "G", "M", guess, missing);
+    }
+    else if (status == "OVR") {
+        storeGame(playerID, "F");
     }
     sendto(fd, message.c_str(), message.length() , 0, (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n =
 }
