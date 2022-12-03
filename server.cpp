@@ -16,6 +16,7 @@
 #include <iostream>
 #include <fstream>
 #include <sys/stat.h>
+#include <sstream>
 
 // TODO : 
 // review global vars like fileName and wordG
@@ -47,7 +48,8 @@ int main(int argc, char const *argv[])
     void makePlay(std::string player, char letter, int trial);
     void makeGuess(std::string playerID, std::string guess, int trial);
     void bootServer();
-    std::string getScoreBoard();
+    void sendScoreBoard(int newfd);
+    void sendHint(int newfd, std::string playerID);
 
     ssize_t n;
     readFlags(argc, argv);
@@ -151,8 +153,7 @@ int main(int argc, char const *argv[])
     else {
 
         char buffer[129];
-        char *ptr;
-        int ret, nw;
+        int ret;
         act.sa_handler=SIG_IGN;
         if(sigaction(SIGCHLD,&act,NULL)==-1)/*error*/exit(1);
         if((fd=socket(AF_INET,SOCK_STREAM,0))==-1)exit(1);//error
@@ -167,13 +168,13 @@ int main(int argc, char const *argv[])
 
         while(1) {
             printf("Waiting for connection...\n");
-            memset(&hints,0,sizeof hints);
+            memset(buffer,0,128);
             addrlen=sizeof(addr);
             do newfd=accept(fd,(struct sockaddr*)&addr,&addrlen);//wait for a connection
             while(newfd==-1&&errno==EINTR);
             if(newfd==-1)/*error*/exit(1);
             if((pid=fork())==-1)/*error*/exit(1);
-            else if(pid==0) {//child process
+            else if(pid==0) { // child process
                 close(fd);
                 while((n=read(newfd,buffer,128))!=0) {
                     if(n==-1)/*error*/exit(1);
@@ -183,15 +184,16 @@ int main(int argc, char const *argv[])
                 message = strip(message);
                 std::vector<std::string> tokens = stringSplit(message, ' ');
                 if (strncmp(buffer, "GSB", 3) == 0) {
-                    printf("%s", getScoreBoard().c_str());
+                    sendScoreBoard(newfd);
                 }
-                /* while(n>0) {
-                        if((nw=write(newfd,ptr,n))<=0) exit(1);
-                        n-=nw; ptr+=nw;
-                } */
+                else if (strncmp(buffer, "GHL", 3) == 0) {
+                    std::string playerID = tokens[1];
+                    printf("%s\n", playerID.c_str());
+                    sendHint(newfd, playerID);
+                }
             close(newfd); exit(0);
             }
-            //parent process
+            // parent process
             do ret=close(newfd);while(ret==-1&&errno==EINTR);
             if(ret==-1)/*error*/exit(1);
         }
@@ -375,13 +377,77 @@ int isDup(std::string playerID, std::string play) {
 std::string getScoreBoard() {
     std::string scoreboard = "";
     std::vector<std::string> files = listDirectory("SCORES");
-    size_t size = files.size();
-    for (size_t i = 0; i < size && i < 10; i++) {
+    ssize_t size = files.size();
+    for (ssize_t i = size - 1; i >= 0 && i >= size - 10; i--) {
         std::string line = getLine("SCORES/" + files[i], 1);
         std::vector<std::string> words = stringSplit(line, ' ');
         scoreboard += words[1] + " " + std::to_string(words[2].length()) + " " + words[4] + "\n";
     }
     return scoreboard;
+}
+
+void sendScoreBoard(int newfd) {
+    std::string scoreboard = getScoreBoard();
+    std::string message;
+    if (scoreboard == "") {
+        message = "RSB EMPTY\n";
+    }
+    else {
+        message = "RSB OK scoreboard.txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
+    }
+    size_t n = message.length();
+    int nw = 0;
+    int i = 0;
+    while(n>0) {
+        if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exit(1);
+        printf("%s", message.substr(i, nw).c_str());
+        n -= nw;
+        i += nw;
+    }
+}
+
+std::string readImage(std::string filename) {
+    // std::ifstream file(filename, std::ios::binary);
+    // std::ostringstream ss;
+    std::string image = "";
+    if (!verifyExistence(filename)) {
+        return image;
+    }
+    // ss << file.rdbuf();
+    // image = ss.str();
+    std::ifstream file(filename, std::ios::binary);
+    std::string line;
+    while (std::getline(file, line)) {
+        image += line + "\n";
+    }
+    return image;
+}
+
+void sendHint(int newfd, std::string playerID) {
+    std::string message;
+    if (! verifyExistence("GAMES/GAME_" + playerID)) {
+        message = "RHL NOK\n";
+    }
+    else {
+        std::string word = stringSplit(getLine("GAMES/GAME_" + playerID, 1), ' ')[0];
+        std::string image = readImage("images/" + word + ".jpg");
+        if (image == "") {
+            message = "RHL NOK\n";
+        }
+        else {
+            message = "RHL OK " + word + ".jpg " + std::to_string(image.size()) + " " + image + "\n";
+        }
+        size_t n = message.length();
+        int nw = 0;
+        int i = 0;
+        while(n>0) {
+            if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exit(1);
+            printf("%s", message.substr(i, nw).c_str());
+            n -= nw;
+            i += nw;
+        }
+    }
+    
 }
 
 void makePlay(std::string playerID, char letter, int trial) {
