@@ -28,9 +28,10 @@
 // ovr before or after
 // wordG remove
 // maybe set seed to start as random always
+// write write to tcp function
 
 struct sigaction act;
-int fd, newfd, errcode;
+int fd, newfd, errcode, seed;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
@@ -142,10 +143,11 @@ int main(int argc, char const *argv[])
                 
             }
             else if (strncmp(buffer, "RRV", 3) == 0) {
-                
+                n=sendto(fd, "ERR\n", 128 ,0 , (struct sockaddr*)&addr, addrlen);
+                if (n==-1)/*error*/ exit(1);
             }
             else {
-                printf("Invalid message code");
+                
             }
         }
         freeaddrinfo(res);
@@ -198,6 +200,17 @@ int main(int argc, char const *argv[])
                     printf("%s\n", playerID.c_str());
                     sendState(newfd, playerID);
                 }
+                else {
+                    message = "ERR\n";
+                    int nw = 0;
+                    int i = 0;
+                    while(n>0) {
+                        if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exit(1);
+                        printf("%s", message.substr(i, nw).c_str());
+                        n -= nw;
+                        i += nw;
+                    }
+                }
             close(newfd); exit(0);
             }
             // parent process
@@ -240,6 +253,25 @@ void readFlags(int argc, char const *argv[]) {
     }
 }
 
+void getNewSeed() {
+    if ( ! verifyExistence("seed.txt") ) {
+        std::ofstream file("seed.txt");
+        file << 0;
+        file.close();
+        seed = 0;
+        return;
+    }
+    std::ifstream file("seed.txt");
+    std::string line;
+    std::getline(file, line);
+    seed = std::stoi(line);
+    seed = random(seed, 0, 1000);
+    file.close();
+    std::ofstream file2("seed.txt");
+    file2 << seed;
+    file2.close();
+}
+
 void readWord(std::string fileName, std::string * word) {
     std::ifstream file(fileName);
     std::string line;
@@ -247,7 +279,8 @@ void readWord(std::string fileName, std::string * word) {
     while (std::getline(file, line)) {
         lines.push_back(line);
     }
-    int lineNumber = random(0, lines.size());
+    getNewSeed();
+    int lineNumber = random(seed, 0, lines.size());
     *word = stringSplit(lines[lineNumber], ' ')[0];
     std::cout << *word << std::endl;
     file.close();

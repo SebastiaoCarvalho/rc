@@ -46,7 +46,8 @@ std::vector<std::string> stringSplit(std::string s, char delimiter) {
 }
 
 // get a random number between min and max
-int random(int min, int max) {
+int random(int seed, int min, int max) {
+    srand(seed);
     return min + (rand() % (max - min + 1));
 }
 
