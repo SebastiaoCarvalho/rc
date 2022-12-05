@@ -20,6 +20,7 @@
 
 // TODO : 
 // review global vars like fileName and wordG
+// implement verbose
 // Socket response
 // handle signals
 // handle errors
@@ -50,6 +51,7 @@ int main(int argc, char const *argv[])
     void bootServer();
     void sendScoreBoard(int newfd);
     void sendHint(int newfd, std::string playerID);
+    void sendState(int newfd, std::string playerID);
 
     ssize_t n;
     readFlags(argc, argv);
@@ -190,6 +192,11 @@ int main(int argc, char const *argv[])
                     std::string playerID = tokens[1];
                     printf("%s\n", playerID.c_str());
                     sendHint(newfd, playerID);
+                }
+                else if (strncmp(buffer, "STA", 3) == 0) {
+                    std::string playerID = tokens[1];
+                    printf("%s\n", playerID.c_str());
+                    sendState(newfd, playerID);
                 }
             close(newfd); exit(0);
             }
@@ -448,6 +455,43 @@ void sendHint(int newfd, std::string playerID) {
         }
     }
     
+}
+
+std::string getLastGame(std::string playerID) {
+    std::vector<std::string> files = listDirectory("GAMES/" + playerID);
+    ssize_t size = files.size();
+    std::string filename = "GAMES/" + playerID + "/" + files[size - 1];
+    std::string file_content = getContent(filename);
+    std::string res = files[size - 1] + " " + std::to_string(file_content.size()) + " " + file_content;
+    return res;
+}
+
+void sendState(int newfd, std::string playerID) {
+    std::string message;
+    std::string file_content = "";
+    if (verifyExistence("GAMES/GAME_" + playerID)) {
+        message = "RST ACT ";
+        file_content = getContent("GAMES/GAME_" + playerID);
+        message += "GAME_" + playerID + " " + std::to_string(file_content.size()) + " " + file_content + "\n";
+    }
+    else if (listDirectory("GAMES/" + playerID).size() != 0) {
+        file_content = getLastGame(playerID);
+        message = "RST FIN ";
+        message += file_content + "\n";
+    }
+    else {
+        message = "RST NOK\n";
+    }
+    size_t n = message.length();
+    int nw = 0;
+    int i = 0;
+    while(n>0) {
+        if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exit(1);
+        printf("%s", message.substr(i, nw).c_str());
+        n -= nw;
+        i += nw;
+    }
+    printf("%s", message.c_str());
 }
 
 void makePlay(std::string playerID, char letter, int trial) {

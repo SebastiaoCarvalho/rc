@@ -64,6 +64,16 @@ std::string getLine(std::string filename, int lineNumber) {
     return NULL;
 }
 
+std::string getContent(std::string filename) {
+    std::string file_content = "";
+    std::ifstream file(filename);
+    std::string line;
+    while (std::getline(file, line)) {
+        file_content += line + "\n";
+    }
+    return file_content;
+}
+
 void appendFile(std::string filename, std::string text) {
     std::ofstream file;
     file.open(filename, std::ios::app);
