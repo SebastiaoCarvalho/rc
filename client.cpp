@@ -9,22 +9,22 @@
 #include <stdio.h>
 #include <iostream>
 #include <string>
+#include <fstream>
 #include "utils.h"
 
-
+FILE *scoreboard;
 int fd,errcode;
 ssize_t n;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
-char buffer[1024];
+char buffer[128];           //mudar para 1024
 char inputFromUser[1024];
 std::string playerID;
 std::string currentWord;
 std::string machineIP = "tejo.tecnico.ulisboa.pt"; //O default é o IP da máquina -> DESKTOP-8NS8GE1
 std::string port="58011";     //O default devia ser 58002
 
-//  RECEBER INPUTS QUANDO PROGRAMA COMEÇA 
 //  STOI DÁ PROBLEMAS??
 //  LIMITAR NUMERO DE PORTS
 //  PROBLEMA A USAR CIN?
@@ -32,6 +32,7 @@ std::string port="58011";     //O default devia ser 58002
 int main(int argc, char const *argv[]) {
     
     void readFlags(int argc, char const *argv[]);
+    std::string getWordFromBuffer(char* buffer, std::string filename);
 
     int trial = 1; 
     int maxErrors = 0; 
@@ -39,7 +40,7 @@ int main(int argc, char const *argv[]) {
     readFlags(argc, argv);
     memset(&hints,0,sizeof hints);
     hints.ai_family=AF_INET; //IPv4
-    hints.ai_socktype=SOCK_DGRAM; //UDP socket
+    hints.ai_socktype=SOCK_STREAM; //UDP socket
     errcode=getaddrinfo(machineIP.c_str(),port.c_str(),&hints,&res);
     if(errcode!=0) /*error*/ exit(1);
 
@@ -47,7 +48,7 @@ int main(int argc, char const *argv[]) {
         std::string word; 
         std::cin >> word;
         
-        printf("%s", inputFromUser);
+        //printf("%s", inputFromUser);
         if(strcmp(word.c_str(),"start") == 0 or strcmp(word.c_str(),"sg") ==0) {
             fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
             if(fd==-1) /*error*/exit(1);
@@ -72,7 +73,7 @@ int main(int argc, char const *argv[]) {
             memcpy(buffer+3, " ", 1);
             memcpy(buffer+4, playerID.c_str(), 6);
             memcpy(buffer+10, "\n", 1);
-            printf("Sending %d bytes as %s to GS:\n",strlen(buffer),  buffer);
+            //printf("Sending %d bytes as %s to GS:\n",strlen(buffer),  buffer);
             n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
             /* Receive GS with the status, checking if the player can start a game */
@@ -154,10 +155,10 @@ int main(int argc, char const *argv[]) {
             //printf("%d",(int)strlen(buffer));
             n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
-            //QUANDO BUFFER RECEBE, RECEBE DADOS COM LIXO PORQUE CASO SEJA UM NOP SO ESCREVE NOS PRIMEIROS BITS
             /* Receive status from GS to check if it is a hit, miss, e.t.c */
             n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
+            /* Delete \n from buffer */
             buffer[n-1] = '\0';
             //printf("%s %d", buffer, (int)strlen(buffer));
             
@@ -166,13 +167,7 @@ int main(int argc, char const *argv[]) {
             //printf("%s", parameters[1].c_str());
             //printf("%d", (int)parameters.size());
 
-            /* Remove '\n' from last position (since the server replies with \n at the end)*/
-            /*
-            std::string lastParameterStr = parameters[parameters.size()-1]; 
-            lastParameterStr[lastParameterStr.length()-1] = '\0';
-            */
             /* If ok, replace the letters in the given positions */
-            //POSICAO COMEÇA NO 0, PROBLEMA: O ULTIMO NUMERO VAI TER \N QUE PODE ATROFIAR COM O STOI
             if (strcmp(parameters[1].c_str(), "OK") == 0) {
                 for (int i=0; i<stoi(parameters[3]); i++) {
                     //printf("%s %s", parameters[3].c_str(), parameters[4+i].c_str());
@@ -259,8 +254,7 @@ int main(int argc, char const *argv[]) {
             /* Split the buffer information into different words */
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
-            if (strcmp(parameters[1].c_str(), "WIN") == 0) {
-                //COMO É QUE VOU BUSCAR A PALAVRA CERTA?   
+            if (strcmp(parameters[1].c_str(), "WIN") == 0) { 
                 printf("Great job! You've gessed the right word.\n");
                 trial = 1;
             }
@@ -270,7 +264,6 @@ int main(int argc, char const *argv[]) {
                 maxErrors -= 1;
             }
             else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
-                //DAR PRINT À PALVRA CERTA?
                 printf("You have exceeded the maximum number of errors. You've lost the game.\n");
                 trial = 1; 
             }
@@ -288,21 +281,69 @@ int main(int argc, char const *argv[]) {
             }
             close(fd);            
         }
+        //DE VEZ EM QUANDO DÁ ERRO PORQUE O TEJO NÃO MANDA O RESTO DA DATA P
         else if(strcmp(word.c_str(),"scoreboard") == 0 or strcmp(word.c_str(),"sb") ==0) {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
+            fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
             if(fd==-1) /*error*/exit(1);
 
             /* Empty buffer */
-            memset(buffer, 0 , 1024);
+            memset(buffer, 0 , 128);
 
             /* Create message to send to GS */
             memcpy(buffer, "GSB", 3);
             memcpy(buffer+3, "\n", 1);
-            n = sendto(fd, buffer, 1024, 0, res->ai_addr, res->ai_addrlen);
+
+            n = connect(fd, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
-            /* Receive status from GS, the file */
-            n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+
+            n = write(fd, buffer, strlen(buffer));
             if (n == -1) /*error*/ exit(1);
+            n = read(fd, buffer, 128);
+            if (n == -1) /*error*/ exit(1);
+            
+            if(n<10){           //MEDIDA TEMPORÁRIA
+                sleep(5);
+            }
+
+            
+            /* Read status */
+            char status[5];
+            std::string sizeOfFile;
+
+            /* Buffer+4 to skip the word "RSB " */
+            sscanf(buffer+4, "%s", status);
+
+            std::string filename;
+            int advance;
+
+            if(strcmp(status,"EMPTY") == 0) {
+                printf("The scoreboard is still empty.\n");
+            }
+            else if (strcmp(status, "OK") == 0) {
+                /* Get filename and file size */
+                filename = getWordFromBuffer(buffer+4+strlen(status)+1, filename);
+                sizeOfFile = getWordFromBuffer(buffer+4+strlen(status)+1+filename.length()+1, sizeOfFile);
+
+                /* Write the rest of the buffer */
+                scoreboard = fopen(filename.c_str(), "w");
+                advance = 4+strlen(status)+1+filename.length()+1+sizeOfFile.length()+1;
+                fprintf(scoreboard, "%s", buffer+advance);
+
+                /* Clear buffer */
+                memset(buffer, 0 , 128);
+
+                /* Read the rest of the buffer */
+                while((n = read(fd, buffer, 128)) != 0) {
+                    if (n == -1) /*error*/ exit(1);
+                        
+                    /* Write buffer */
+                    fprintf(scoreboard, "%s", buffer);
+    
+                    /* Clear buffer for next write*/
+                    memset(buffer, 0 , 128);
+                }
+                fclose(scoreboard);
+            }         
             close(fd);
         }
         else if(strcmp(word.c_str(),"hint") == 0 or strcmp(word.c_str(),"h") ==0) {
@@ -401,7 +442,7 @@ int main(int argc, char const *argv[]) {
         }
         else {
             printf("Invalid command, please try again.\n");
-            /* Read useless information  from line and clear buffer*/
+            /* Read useless information from line (if there are more than two arguments) and clear buffer*/
             fgets(buffer, 1024, stdin);
             memset(buffer, 0 , 1024);
             continue;
@@ -435,4 +476,14 @@ void readFlags(int argc, char const *argv[]) {
             argn += 1;
         }
     }
+}
+
+std::string getWordFromBuffer(char* buffer, std::string filename){
+    for (int j = 0; j < n; j++) {
+        if (buffer[j] == ' ') {
+            filename = std::string(buffer).substr(0, j);
+            break;
+        }
+    }
+    return filename;
 }
