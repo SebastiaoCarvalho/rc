@@ -19,15 +19,17 @@
 #include <sstream>
 
 // TODO : 
+// check error cases for makeplay and makeguess
+// change quit to save game before quitting
+// check if if else order on plays and guesses is right
+// create message makers 
 // review global vars like fileName and wordG
 // implement verbose
 // Socket response
 // handle signals
 // handle errors
 // handle exits freeing stuff
-// ovr before or after
 // wordG remove
-// maybe set seed to start as random always
 // write write to tcp function
 
 struct sigaction act;
@@ -101,6 +103,9 @@ int main(int argc, char const *argv[])
                 /* Read PlayerID*/
                 std::string playerID = tokens[1];
                 printf("PlayerID: %s\n", playerID.c_str());
+                if (verbose) {
+                    printf("Received SNG with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                }
                 startGame(playerID);
             }
             else if (strncmp(buffer, "PLG", 3) == 0) {
@@ -112,6 +117,9 @@ int main(int argc, char const *argv[])
                 printf("%c\n", letter);
                 /*Read Trial*/
                 std::string trial = tokens[3];
+                if (verbose) {
+                    printf("Received PLG with playerID: %s, letter: %c, trial: %s from IP address: %s and port: %d\n", playerID.c_str(), letter, trial.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                }
                 printf("%s\n", trial.c_str());
                 int trial_int = atoi(trial.c_str());
                 printf("trial_int: %d\n", trial_int);
@@ -126,6 +134,9 @@ int main(int argc, char const *argv[])
                 printf("%s\n", word.c_str());
                 /*Read Trial*/
                 std::string trial = tokens[3];
+                if (verbose) {
+                    printf("Received PWG with playerID: %s, word: %s, trial: %s from IP address: %s and port: %d\n", playerID.c_str(), word.c_str(), trial.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                }
                 printf("%s\n", trial.c_str());
                 int trial_int = atoi(trial.c_str());
                 makeGuess(playerID, word, trial_int);
@@ -136,6 +147,10 @@ int main(int argc, char const *argv[])
                 std::string playerID = tokens[1];
                 printf("%s\n", playerID.c_str());
                 message = "OK " + playerID + "\n";
+                if (verbose) {
+                    printf("Received QUT with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                }
+                // quitGame();
                 n=sendto(fd, message.c_str(), 128 ,0 , (struct sockaddr*)&addr, addrlen);
                 if (n==-1)/*error*/ exit(1);
             }      
@@ -143,11 +158,11 @@ int main(int argc, char const *argv[])
                 
             }
             else if (strncmp(buffer, "RRV", 3) == 0) {
-                n=sendto(fd, "ERR\n", 128 ,0 , (struct sockaddr*)&addr, addrlen);
-                if (n==-1)/*error*/ exit(1);
+                
             }
             else {
-                
+                n=sendto(fd, "ERR\n", 128 ,0 , (struct sockaddr*)&addr, addrlen);
+                if (n==-1)/*error*/ exit(1);
             }
         }
         freeaddrinfo(res);
@@ -280,7 +295,7 @@ void readWord(std::string fileName, std::string * word) {
         lines.push_back(line);
     }
     getNewSeed();
-    int lineNumber = random(seed, 0, lines.size());
+    int lineNumber = random(seed, 0, lines.size() - 1);
     *word = stringSplit(lines[lineNumber], ' ')[0];
     std::cout << *word << std::endl;
     file.close();
@@ -331,6 +346,13 @@ void startGame(std::string playerID) {
         message = "RSG " + status + " " + letterNumber + " " + maxErrors + "\n";
     }
     sendto(fd, message.c_str(), message.length(), 0, (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n = 
+}
+
+int isRepeated(std::string playerID, std::string play) {
+    std::string line = getLastLine("GAMES/GAME_" + playerID);
+    printf("line: %s\n", line.c_str());
+    printf("play: %s\n", play.c_str());
+    return play == line + "\n";
 }
 
 void savePlay(std::string playerID, std::string status, std::string hit, std::string play, int missing) {
@@ -400,6 +422,7 @@ int isTrialValid(std::string playerID, int trial) {
     printf("line_number: %d\n", line_number);
     return trial == line_number;
 }
+
 
 int isDup(std::string playerID, std::string play) {
     std::ifstream file("GAMES/GAME_" + playerID);
@@ -540,10 +563,10 @@ void makePlay(std::string playerID, char letter, int trial) {
     if (! verifyExistence("GAMES/GAME_" + playerID)) {
         status = "ERR";
     }
-    else if (! isTrialValid(playerID, trial)) {
+    else if (! isTrialValid(playerID, trial) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
         status = "INV";
     }
-    else if (isDup(playerID, std::string(1, letter))) {
+    else if (isDup(playerID, std::string(1, letter)) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
         status = "DUP";
     }
     else if (errorsMade + 1 > maxErrorsN) { 
@@ -568,10 +591,10 @@ void makePlay(std::string playerID, char letter, int trial) {
         }
     }
     message += "\n";
-    if (status == "OK" || status == "WIN") {
+    if ((status == "OK" || status == "WIN") && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
         savePlay(playerID, "T", "H", std::string(1, letter), missing - pos.size());
     }
-    else if (status == "NOK") {
+    else if (status == "NOK" && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
         savePlay(playerID, "T", "M", std::string(1, letter), missing - pos.size());
     }
     if (status == "WIN") {
@@ -590,7 +613,13 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     int maxErrorsN = maxErrors(wordG);
     int errorsMade = getErrorsMade(playerID);
     int missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : wordG.length();
-    if (guess == wordG) {
+    if (! verifyExistence("GAMES/GAME_" + playerID)) {
+        status = "ERR";
+    }
+    else if (! isTrialValid(playerID, trial) && ! isRepeated(playerID,  "G H " + guess + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, status + "G M " + guess + " " + std::to_string(missing) + "\n")) {
+        status = "INV";
+    }
+    else if (guess == wordG) {
         status = "WIN";
     }
     else if (errorsMade > maxErrorsN) {
@@ -601,12 +630,12 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     }
     std::string message;
     message = "RWG " + status + " " + std::to_string(trial) + "\n";
-    if (status == "WIN") {
+    if (status == "WIN" && ! isRepeated(playerID, "G H " + guess + " " + std::to_string(missing) + "\n")) {
         savePlay(playerID, "G", "H", guess, 0);
         saveScore(playerID);
         storeGame(playerID, "W");
     }
-    else if (status == "NOK") {
+    else if (status == "NOK" && ! isRepeated(playerID, "G M " + guess + " " + std::to_string(missing) + "\n") ) {
         savePlay(playerID, "G", "M", guess, missing);
     }
     else if (status == "OVR") {

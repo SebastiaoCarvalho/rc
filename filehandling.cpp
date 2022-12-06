@@ -64,6 +64,10 @@ std::string getLine(std::string filename, int lineNumber) {
     return NULL;
 }
 
+std::string getLastLine(std::string filename) {
+    return getLine(filename, getLineNumber(filename));
+}
+
 std::string getContent(std::string filename) {
     std::string file_content = "";
     std::ifstream file(filename);
