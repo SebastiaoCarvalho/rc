@@ -19,9 +19,8 @@
 #include <sstream>
 
 // TODO : 
-// add verification of n != -1 on sends at udp protocols
+// change state to send only plays of game and not whole file
 // check error cases for makeplay and makeguess
-// change quit to save game before quitting
 // check if if else order on plays and guesses is right
 // create message makers 
 // review global vars like fileName and wordG
@@ -30,8 +29,6 @@
 // handle signals
 // handle errors
 // handle exits freeing stuff
-// wordG remove
-// write write to tcp function
 
 struct sigaction act;
 int fd, newfd, errcode, seed;
@@ -40,7 +37,6 @@ struct addrinfo hints,*res;
 struct sockaddr_in addr;
 std::string fileName;
 std::string port = "58002";
-std::string wordG = "batata";
 bool verbose = false;
 
 int main(int argc, char const *argv[])
@@ -242,6 +238,27 @@ int main(int argc, char const *argv[])
     close(fd);
 } */
 
+void sendUDP(int fd, std::string message, struct sockaddr_in addr, size_t addrlen) {
+    int n = sendto(fd, message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen);
+    if (n==-1)/*error*/ exit(1);
+}
+
+void sendTCP(int fd, std::string message) {
+    int nw, i = 0;
+    size_t n = message.length();
+    while(n>0) {
+        if ((nw=write(fd, message.substr(i, n).c_str(),n))<=0) exit(1);
+        n -= nw;
+        i += nw;
+    }
+}
+
+void exitServer(int exitCode) {
+    freeaddrinfo(res);
+    close(fd);
+    exit(exitCode);
+}
+
 void readFlags(int argc, char const *argv[]) {
     if (argc == 1) {
         printf("No file name specified. Using default file name: words.txt\n");
@@ -343,13 +360,12 @@ void startGame(std::string playerID) {
         else { // get word from game file    
             word = stringSplit(getLine("GAMES/GAME_" + playerID, 1), ' ')[0]; 
         }
-        wordG = word;
         std::string letterNumber = std::to_string(word.length());
-        int errorsN = maxErrors(wordG);
+        int errorsN = maxErrors(word);
         std::string maxErrors = std::to_string(errorsN);
         message = "RSG " + status + " " + letterNumber + " " + maxErrors + "\n";
     }
-    sendto(fd, message.c_str(), message.length(), 0, (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n = 
+    sendUDP(fd, message.c_str(), addr, addrlen); // TODO : check if sends using n = 
 }
 
 int isRepeated(std::string playerID, std::string play) {
@@ -431,7 +447,7 @@ void quitGame(std::string playerID) {
         status = "ERR";
     }
     std::string message = "RQT " + status + "\n";
-    sendto(fd, message.c_str(), message.length(), 0, (struct sockaddr*)&addr, addrlen);
+    sendUDP(fd, message.c_str(), addr, addrlen);
 }
 
 int isTrialValid(std::string playerID, int trial) {
@@ -452,6 +468,12 @@ int isDup(std::string playerID, std::string play) {
         }
     }
     return 0;
+}
+
+std::string getWord(std::string playerID) {
+    std::string line = getLine("GAMES/GAME_" + playerID, 1);
+    std::vector<std::string> words = stringSplit(line, ' ');
+    return words[0];
 }
 
 std::string getScoreBoard() {
@@ -475,15 +497,7 @@ void sendScoreBoard(int newfd) {
     else {
         message = "RSB OK scoreboard.txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
     }
-    size_t n = message.length();
-    int nw = 0;
-    int i = 0;
-    while(n>0) {
-        if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exit(1);
-        printf("%s", message.substr(i, nw).c_str());
-        n -= nw;
-        i += nw;
-    }
+    sendTCP(newfd, message.c_str());
 }
 
 std::string readImage(std::string filename) {
@@ -517,17 +531,8 @@ void sendHint(int newfd, std::string playerID) {
         else {
             message = "RHL OK " + word + ".jpg " + std::to_string(image.size()) + " " + image + "\n";
         }
-        size_t n = message.length();
-        int nw = 0;
-        int i = 0;
-        while(n>0) {
-            if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exit(1);
-            printf("%s", message.substr(i, nw).c_str());
-            n -= nw;
-            i += nw;
-        }
     }
-    
+    sendTCP(newfd, message.c_str());
 }
 
 std::string getLastGame(std::string playerID) {
@@ -540,8 +545,7 @@ std::string getLastGame(std::string playerID) {
 }
 
 void sendState(int newfd, std::string playerID) {
-    std::string message;
-    std::string file_content = "";
+    std::string message, file_content = "";
     if (verifyExistence("GAMES/GAME_" + playerID)) {
         message = "RST ACT ";
         file_content = getContent("GAMES/GAME_" + playerID);
@@ -555,32 +559,26 @@ void sendState(int newfd, std::string playerID) {
     else {
         message = "RST NOK\n";
     }
-    size_t n = message.length();
-    int nw = 0;
-    int i = 0;
-    while(n>0) {
-        if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exit(1);
-        printf("%s", message.substr(i, nw).c_str());
-        n -= nw;
-        i += nw;
-    }
+    sendTCP(newfd, message.c_str());
     printf("%s", message.c_str());
 }
 
 void makePlay(std::string playerID, char letter, int trial) {
-    std::string status;
-    char word[30]; // TODO : maybe change this to std::string
-    strcpy(word, wordG.c_str());
-    printf("%s\n", word);
-    std::vector<int> pos = getPos(word, letter);
-    int maxErrorsN = maxErrors(wordG);
-    int errorsMade = getErrorsMade(playerID);
-    int missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : wordG.length();
-    printf("missing: %d\n", missing);
+    std::string status, message, word;
+    std::vector<int> pos;
+    int maxErrorsN, errorsMade, missing;
     if (! verifyExistence("GAMES/GAME_" + playerID)) {
-        status = "ERR";
+        message = "RLG ERR\n";
+        sendUDP(fd, message.c_str(), addr, addrlen);
+        return;
     }
-    else if (! isTrialValid(playerID, trial) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
+    word = getWord(playerID);
+    pos = getPos(word, letter);
+    maxErrorsN = maxErrors(word);
+    errorsMade = getErrorsMade(playerID);
+    missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : word.length();
+    printf("missing: %d\n", missing);
+    if (! isTrialValid(playerID, trial) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
         status = "INV";
     }
     else if (isDup(playerID, std::string(1, letter)) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
@@ -598,7 +596,6 @@ void makePlay(std::string playerID, char letter, int trial) {
     else {
         status = "NOK";
     }
-    std::string message;
     message = "RLG " + status + " " + std::to_string(trial);
     size_t len = pos.size();
     if (status == "OK") {
@@ -622,21 +619,25 @@ void makePlay(std::string playerID, char letter, int trial) {
         storeGame(playerID, "F");
     }
     printf("%s", message.c_str());
-    sendto(fd,message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n = 
+    sendUDP(fd,message.c_str(), addr, addrlen);
 }
 
 void makeGuess(std::string playerID, std::string guess, int trial) {
-    std::string status;
-    int maxErrorsN = maxErrors(wordG);
-    int errorsMade = getErrorsMade(playerID);
-    int missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : wordG.length();
+    std::string status, word, message;
+    int maxErrorsN, errorsMade, missing;
     if (! verifyExistence("GAMES/GAME_" + playerID)) {
-        status = "ERR";
+        message = "RWG ERR\n";
+        sendUDP(fd, message.c_str(), addr, addrlen);
+        return;
     }
-    else if (! isTrialValid(playerID, trial) && ! isRepeated(playerID,  "G H " + guess + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, status + "G M " + guess + " " + std::to_string(missing) + "\n")) {
+    maxErrorsN = maxErrors(word);
+    errorsMade = getErrorsMade(playerID);
+    missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : word.length();
+    word = getWord(playerID);
+    if (! isTrialValid(playerID, trial) && ! isRepeated(playerID,  "G H " + guess + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, status + "G M " + guess + " " + std::to_string(missing) + "\n")) {
         status = "INV";
     }
-    else if (guess == wordG) {
+    else if (guess == word) {
         status = "WIN";
     }
     else if (errorsMade > maxErrorsN) {
@@ -645,7 +646,6 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     else {
         status = "NOK";
     }
-    std::string message;
     message = "RWG " + status + " " + std::to_string(trial) + "\n";
     if (status == "WIN" && ! isRepeated(playerID, "G H " + guess + " " + std::to_string(missing) + "\n")) {
         savePlay(playerID, "G", "H", guess, 0);
@@ -658,6 +658,6 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     else if (status == "OVR") {
         storeGame(playerID, "F");
     }
-    sendto(fd, message.c_str(), message.length() , 0, (struct sockaddr*)&addr, addrlen); // TODO : check if sends using n =
+    sendUDP(fd, message.c_str(), addr, addrlen);
 }
 

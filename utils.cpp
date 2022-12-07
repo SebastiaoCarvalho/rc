@@ -8,11 +8,11 @@
 #include <cstdlib>
 
 // get all positions of a letter in a string
-std::vector<int> getPos(char * string, char letter) {
-    ssize_t len = strlen(string);
+std::vector<int> getPos(std::string str, char letter) {
+    ssize_t len = str.length();
     std::vector<int> pos;
     for (int i = 0; i < len; i++) {
-        if (string[i] == letter) {
+        if (str[i] == letter) {
             pos.push_back(i);
         }
     }
