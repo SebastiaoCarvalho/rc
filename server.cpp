@@ -19,6 +19,7 @@
 #include <sstream>
 
 // TODO : 
+// add verification of n != -1 on sends at udp protocols
 // check error cases for makeplay and makeguess
 // change quit to save game before quitting
 // check if if else order on plays and guesses is right
@@ -55,6 +56,7 @@ int main(int argc, char const *argv[])
     void sendScoreBoard(int newfd);
     void sendHint(int newfd, std::string playerID);
     void sendState(int newfd, std::string playerID);
+    void quitGame(std::string playerID);
 
     ssize_t n;
     readFlags(argc, argv);
@@ -150,9 +152,8 @@ int main(int argc, char const *argv[])
                 if (verbose) {
                     printf("Received QUT with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
                 }
-                // quitGame();
-                n=sendto(fd, message.c_str(), 128 ,0 , (struct sockaddr*)&addr, addrlen);
-                if (n==-1)/*error*/ exit(1);
+                quitGame(playerID);
+
             }      
             else if (strncmp(buffer, "REV", 3) == 0) {
                 
@@ -242,9 +243,12 @@ int main(int argc, char const *argv[])
 } */
 
 void readFlags(int argc, char const *argv[]) {
-    if (argc > 0) {
+    if (argc == 1) {
+        printf("No file name specified. Using default file name: words.txt\n");
+        fileName = "words.txt";
+    }
+    else {
         fileName = argv[1];
-
     }
     int argn = 1;
     while (argn < argc) {
@@ -415,6 +419,19 @@ void saveScore(std::string playerID) {
     std:: string scoreFilename = scoreS+ "_" + playerID + "_" + getDateFormatted(ltm);
     file.open("SCORES/" + scoreFilename);
     file << scoreS << " " << playerID << " " << word << " " << succ << " " << trials << std::endl;
+}
+
+void quitGame(std::string playerID) {
+    std::string status;
+    if (hasGame(playerID)) {
+        status = "OK";
+        storeGame(playerID, "Q");
+    }
+    else {
+        status = "ERR";
+    }
+    std::string message = "RQT " + status + "\n";
+    sendto(fd, message.c_str(), message.length(), 0, (struct sockaddr*)&addr, addrlen);
 }
 
 int isTrialValid(std::string playerID, int trial) {
