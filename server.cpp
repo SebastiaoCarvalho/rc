@@ -29,6 +29,13 @@
 // handle signals
 // handle errors
 // handle exits freeing stuff
+// change all exit(1) to exitServer(1)
+// fix state on finished
+
+// Duvidas:
+// 1. State tem q ser igual ao do server?
+// 2. Onde fazer free do addrinfo?
+// 3. Como fazer para ip ser o localhost?
 
 struct sigaction act;
 int fd, newfd, errcode, seed;
@@ -53,6 +60,8 @@ int main(int argc, char const *argv[])
     void sendHint(int newfd, std::string playerID);
     void sendState(int newfd, std::string playerID);
     void quitGame(std::string playerID);
+    void exitServer(int errrorCode);
+    void handleCtrlC(int s);
 
     ssize_t n;
     readFlags(argc, argv);
@@ -61,9 +70,9 @@ int main(int argc, char const *argv[])
     int pid = fork();
     if (pid == -1) {
         perror("fork");
-        exit(1);
+        exitServer(1);
     }
-    /* signal(SIGINT, handleCtrlC); */
+    signal(SIGINT, handleCtrlC);
     if (pid > 0)
     {
 
@@ -71,13 +80,6 @@ int main(int argc, char const *argv[])
         // child process
         fd=socket(AF_INET,SOCK_DGRAM,0); //UDP socket
         if(fd==-1) /*error*/exit(1);
-        // set socket timer
-        /* struct timeval tv;
-        tv.tv_sec = 10;
-        tv.tv_usec = 0;
-        if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
-            perror("Error");
-        } */
         memset(&hints,0,sizeof hints);
         hints.ai_family=AF_INET; // IPv4
         hints.ai_socktype=SOCK_DGRAM; // UDP socket
@@ -180,7 +182,6 @@ int main(int argc, char const *argv[])
         if ((ret=getaddrinfo(NULL, port.c_str(), &hints, &res))!=0)/*error*/exit(1);
         if (bind(fd,res->ai_addr,res->ai_addrlen)==-1)/*error*/exit(1);
         if (listen(fd,5)==-1)/*error*/exit(1);
-        freeaddrinfo(res);//frees the memory allocated by getaddrinfo (no longer needed)
 
         while(1) {
             printf("Waiting for connection...\n");
@@ -223,7 +224,8 @@ int main(int argc, char const *argv[])
                         i += nw;
                     }
                 }
-            close(newfd); exit(0);
+                close(newfd); 
+                exit(0);
             }
             // parent process
             do ret=close(newfd);while(ret==-1&&errno==EINTR);
@@ -231,12 +233,6 @@ int main(int argc, char const *argv[])
         }
     }
 }
-
-
-/* void handleCtrlC(int s){
-    freeaddrinfo(res);
-    close(fd);
-} */
 
 void sendUDP(int fd, std::string message, struct sockaddr_in addr, size_t addrlen) {
     int n = sendto(fd, message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen);
@@ -257,6 +253,11 @@ void exitServer(int exitCode) {
     freeaddrinfo(res);
     close(fd);
     exit(exitCode);
+}
+
+void handleCtrlC(int s){
+    printf("Caught exitting signal.\n Exiting...\n");
+    exitServer(s);
 }
 
 void readFlags(int argc, char const *argv[]) {
@@ -470,8 +471,8 @@ int isDup(std::string playerID, std::string play) {
     return 0;
 }
 
-std::string getWord(std::string playerID) {
-    std::string line = getLine("GAMES/GAME_" + playerID, 1);
+std::string getWord(std::string fileName) {
+    std::string line = getLine(fileName, 1);
     std::vector<std::string> words = stringSplit(line, ' ');
     return words[0];
 }
@@ -535,12 +536,39 @@ void sendHint(int newfd, std::string playerID) {
     sendTCP(newfd, message.c_str());
 }
 
-std::string getLastGame(std::string playerID) {
+std::string getSummary(std::string filename) {
+    int trials = getLineNumber(filename) - 1;
+    std::string word = getWord(filename);
+    std::string game = repeat("-", word.length());
+    std::string summary = std::to_string(trials) + " transactions found:\n";
+    for (int i = 1; i <= trials; i++) {
+        std::string line = getLine(filename, i + 1);
+        printf("line: %s\n", line.c_str());
+        std::vector<std::string> words = stringSplit(line, ' ');
+        if (words[0] == "T") {
+            summary += "Letter trial: " + words[2] + "\n";
+            size_t len = word.length();
+            for (size_t j = 0; j < len; j++) {
+                if (word[j] == words[2][0]) {
+                    game[j] = words[2][0];
+                }
+            }
+        }
+        else {
+            summary += "Word trial: " + words[2] + "\n";
+        }
+        summary += "Solved so far: " + game + "\n";
+    }
+    return summary;
+}
+
+std::string getLastGameSummary(std::string playerID) {
     std::vector<std::string> files = listDirectory("GAMES/" + playerID);
     ssize_t size = files.size();
     std::string filename = "GAMES/" + playerID + "/" + files[size - 1];
-    std::string file_content = getContent(filename);
-    std::string res = files[size - 1] + " " + std::to_string(file_content.size()) + " " + file_content;
+    std::string file_content = getSummary(filename);
+    std::string res = files[size - 1] + " " + std::to_string(file_content.size()) + " " 
+    + "Finished game found for player " + playerID + "\n" + file_content;
     return res;
 }
 
@@ -548,19 +576,19 @@ void sendState(int newfd, std::string playerID) {
     std::string message, file_content = "";
     if (verifyExistence("GAMES/GAME_" + playerID)) {
         message = "RST ACT ";
-        file_content = getContent("GAMES/GAME_" + playerID);
+        file_content = "Active game found for player " + playerID + "\n" + getSummary("GAMES/GAME_" + playerID);
         message += "GAME_" + playerID + " " + std::to_string(file_content.size()) + " " + file_content + "\n";
     }
     else if (listDirectory("GAMES/" + playerID).size() != 0) {
-        file_content = getLastGame(playerID);
+        file_content = getLastGameSummary(playerID);
         message = "RST FIN ";
         message += file_content + "\n";
     }
     else {
         message = "RST NOK\n";
     }
-    sendTCP(newfd, message.c_str());
     printf("%s", message.c_str());
+    sendTCP(newfd, message.c_str());
 }
 
 void makePlay(std::string playerID, char letter, int trial) {
@@ -572,7 +600,7 @@ void makePlay(std::string playerID, char letter, int trial) {
         sendUDP(fd, message.c_str(), addr, addrlen);
         return;
     }
-    word = getWord(playerID);
+    word = getWord("GAMES/GAME_" +  playerID);
     pos = getPos(word, letter);
     maxErrorsN = maxErrors(word);
     errorsMade = getErrorsMade(playerID);
@@ -633,7 +661,7 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     maxErrorsN = maxErrors(word);
     errorsMade = getErrorsMade(playerID);
     missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : word.length();
-    word = getWord(playerID);
+    word = getWord("GAMES/GAME_" + playerID);
     if (! isTrialValid(playerID, trial) && ! isRepeated(playerID,  "G H " + guess + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, status + "G M " + guess + " " + std::to_string(missing) + "\n")) {
         status = "INV";
     }
