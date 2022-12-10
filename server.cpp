@@ -143,6 +143,8 @@ int main(int argc, char const *argv[])
                     sendUDP(fd, "RLG ERR\n", addr, addrlen);
                     continue;
                 }
+
+                
                 if (verbose) {
                     printf("Received PWG with playerID: %s, word: %s, trial: %s from IP address: %s and port: %d\n", playerID.c_str(), word.c_str(), trial.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
                 }
