@@ -19,23 +19,20 @@
 #include <sstream>
 
 // TODO : 
-// change state to send only plays of game and not whole file
 // check error cases for makeplay and makeguess
 // check if if else order on plays and guesses is right
-// create message makers 
 // review global vars like fileName and wordG
 // implement verbose
+// maybe add verbose to error sending
 // Socket response
 // handle signals
 // handle errors
 // handle exits freeing stuff
-// change all exit(1) to exitServer(1)
 // fix state on finished
 
-// Duvidas:
-// 1. State tem q ser igual ao do server?
-// 2. Onde fazer free do addrinfo?
-// 3. Como fazer para ip ser o localhost?
+// DUVIDAS:
+// 1. Qual a função de score?
+// 2. Palavra pode ter digitos?
 
 struct sigaction act;
 int fd, newfd, errcode, seed;
@@ -62,6 +59,7 @@ int main(int argc, char const *argv[])
     void quitGame(std::string playerID);
     void exitServer(int errrorCode);
     void handleCtrlC(int s);
+    void sendUDP(int fd, std::string message, struct sockaddr_in addr, size_t addrlen);
 
     ssize_t n;
     readFlags(argc, argv);
@@ -79,22 +77,22 @@ int main(int argc, char const *argv[])
         char buffer[129];
         // child process
         fd=socket(AF_INET,SOCK_DGRAM,0); //UDP socket
-        if(fd==-1) /*error*/exit(1);
+        if(fd==-1) /*error*/exitServer(1);
         memset(&hints,0,sizeof hints);
         hints.ai_family=AF_INET; // IPv4
         hints.ai_socktype=SOCK_DGRAM; // UDP socket
         hints.ai_flags=AI_PASSIVE;
         errcode=getaddrinfo(NULL, port.c_str(),&hints,&res);
-        if(errcode!=0) /*error*/ exit(1);
+        if(errcode!=0) /*error*/ exitServer(errcode);
         n=bind(fd,res->ai_addr, res->ai_addrlen);
         printf("%d\n", errno);
-        if(n==-1) /*error*/ exit(1);
+        if(n==-1) /*error*/ exitServer(1);
         while (1) {
             addrlen=sizeof(addr);
             printf("Waiting for message...\n");
             memset(buffer,0,128);
             n=recvfrom(fd,buffer, 128, 0, (struct sockaddr*)&addr,&addrlen);
-            if(n==-1)/*error*/exit(1);
+            if(n==-1)/*error*/exitServer(1);
             buffer[128] = '\0';
             std::string message = buffer;
             message = strip(message);
@@ -112,7 +110,12 @@ int main(int argc, char const *argv[])
                 /* Read PlayerID*/
                 std::string playerID = tokens[1];
                 printf("%s\n", playerID.c_str());
+                int errCond = playerID.length() != 6  || ! isNumber(playerID) || tokens[2].length() != 1 || ! isNumber(tokens[3]);
                 /*Read letter*/
+                if (errCond ) {
+                    sendUDP(fd, "RLG ERR\n", addr, addrlen);
+                    continue;
+                }
                 char letter = tokens[2][0];
                 printf("%c\n", letter);
                 /*Read Trial*/
@@ -134,6 +137,12 @@ int main(int argc, char const *argv[])
                 printf("%s\n", word.c_str());
                 /*Read Trial*/
                 std::string trial = tokens[3];
+                int errCond = playerID.length() != 6  || ! isNumber(playerID)  || ! isNumber(tokens[3]);
+                /*Read letter*/
+                if (errCond ) {
+                    sendUDP(fd, "RLG ERR\n", addr, addrlen);
+                    continue;
+                }
                 if (verbose) {
                     printf("Received PWG with playerID: %s, word: %s, trial: %s from IP address: %s and port: %d\n", playerID.c_str(), word.c_str(), trial.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
                 }
@@ -161,7 +170,7 @@ int main(int argc, char const *argv[])
             }
             else {
                 n=sendto(fd, "ERR\n", 128 ,0 , (struct sockaddr*)&addr, addrlen);
-                if (n==-1)/*error*/ exit(1);
+                if (n==-1)/*error*/ exitServer(1);
             }
         }
         freeaddrinfo(res);
@@ -173,15 +182,15 @@ int main(int argc, char const *argv[])
         char buffer[129];
         int ret;
         act.sa_handler=SIG_IGN;
-        if(sigaction(SIGCHLD,&act,NULL)==-1)/*error*/exit(1);
-        if((fd=socket(AF_INET,SOCK_STREAM,0))==-1)exit(1);//error
+        if(sigaction(SIGCHLD,&act,NULL)==-1)/*error*/exitServer(1);
+        if((fd=socket(AF_INET,SOCK_STREAM,0))==-1)exitServer(1);//error
         memset(&hints,0,sizeof hints);
         hints.ai_family=AF_INET;//IPv4
         hints.ai_socktype=SOCK_STREAM;//TCP socket
         hints.ai_flags=AI_PASSIVE;
-        if ((ret=getaddrinfo(NULL, port.c_str(), &hints, &res))!=0)/*error*/exit(1);
-        if (bind(fd,res->ai_addr,res->ai_addrlen)==-1)/*error*/exit(1);
-        if (listen(fd,5)==-1)/*error*/exit(1);
+        if ((ret=getaddrinfo(NULL, port.c_str(), &hints, &res))!=0)/*error*/exitServer(1);
+        if (bind(fd,res->ai_addr,res->ai_addrlen)==-1)/*error*/exitServer(1);
+        if (listen(fd,5)==-1)/*error*/exitServer(1);
 
         while(1) {
             printf("Waiting for connection...\n");
@@ -189,13 +198,12 @@ int main(int argc, char const *argv[])
             addrlen=sizeof(addr);
             do newfd=accept(fd,(struct sockaddr*)&addr,&addrlen);//wait for a connection
             while(newfd==-1&&errno==EINTR);
-            if(newfd==-1)/*error*/exit(1);
-            if((pid=fork())==-1)/*error*/exit(1);
+            if(newfd==-1)/*error*/exitServer(1);
+            if((pid=fork())==-1)/*error*/exitServer(1);
             else if(pid==0) { // child process
-                close(fd);
-                while((n=read(newfd,buffer,128))!=0) {
-                    if(n==-1)/*error*/exit(1);
-                }
+                
+                n = read(newfd, buffer, 128);
+                if (n == -1) /*error*/ exitServer(1);
                 buffer[128] = '\0';
                 std::string message = buffer;
                 message = strip(message);
@@ -218,7 +226,7 @@ int main(int argc, char const *argv[])
                     int nw = 0;
                     int i = 0;
                     while(n>0) {
-                        if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exit(1);
+                        if ((nw=write(newfd, message.substr(i, n).c_str(),n))<=0) exitServer(1);
                         printf("%s", message.substr(i, nw).c_str());
                         n -= nw;
                         i += nw;
@@ -229,23 +237,8 @@ int main(int argc, char const *argv[])
             }
             // parent process
             do ret=close(newfd);while(ret==-1&&errno==EINTR);
-            if(ret==-1)/*error*/exit(1);
+            if(ret==-1)/*error*/exitServer(1);
         }
-    }
-}
-
-void sendUDP(int fd, std::string message, struct sockaddr_in addr, size_t addrlen) {
-    int n = sendto(fd, message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen);
-    if (n==-1)/*error*/ exit(1);
-}
-
-void sendTCP(int fd, std::string message) {
-    int nw, i = 0;
-    size_t n = message.length();
-    while(n>0) {
-        if ((nw=write(fd, message.substr(i, n).c_str(),n))<=0) exit(1);
-        n -= nw;
-        i += nw;
     }
 }
 
@@ -253,6 +246,21 @@ void exitServer(int exitCode) {
     freeaddrinfo(res);
     close(fd);
     exit(exitCode);
+}
+
+void sendUDP(int fd, std::string message, struct sockaddr_in addr, size_t addrlen) {
+    int n = sendto(fd, message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen);
+    if (n==-1)/*error*/ exitServer(1);
+}
+
+void sendTCP(int fd, std::string message) {
+    int nw, i = 0;
+    size_t n = message.length();
+    while(n>0) {
+        if ((nw=write(fd, message.substr(i, n).c_str(),n))<=0) exitServer(1);
+        n -= nw;
+        i += nw;
+    }
 }
 
 void handleCtrlC(int s){
@@ -344,6 +352,7 @@ void bootServer() {
 int hasGame(std::string playerId) {
     return verifyExistence("GAMES/GAME_" + playerId) && getLineNumber("GAMES/GAME_" + playerId) > 1;
 }
+
 void startGame(std::string playerID) {
     std::string word;
     std::string status;
@@ -478,13 +487,22 @@ std::string getWord(std::string fileName) {
 }
 
 std::string getScoreBoard() {
-    std::string scoreboard = "";
     std::vector<std::string> files = listDirectory("SCORES");
+    std::string scoreboard = "\n----------------------------- TOP " + 
+    std::to_string(files.size()) + 
+    " SCORES -----------------------------\n";
+    scoreboard += "\n";
+    scoreboard += "SCORE PLAYER     WORD                      GOOD TRIALS  TOTAL TRIALS\n\n";
     ssize_t size = files.size();
     for (ssize_t i = size - 1; i >= 0 && i >= size - 10; i--) {
         std::string line = getLine("SCORES/" + files[i], 1);
         std::vector<std::string> words = stringSplit(line, ' ');
-        scoreboard += words[1] + " " + std::to_string(words[2].length()) + " " + words[4] + "\n";
+        std::string word = words[2];
+        while (word.length() < 32) {
+            word += " ";
+        }
+        scoreboard += " " + words[0] + "  " + words[1] + "  " + word + " " + 
+        words[3] + repeat(" ", 13) + words[4] + "\n";
     }
     return scoreboard;
 }
@@ -498,6 +516,7 @@ void sendScoreBoard(int newfd) {
     else {
         message = "RSB OK scoreboard.txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
     }
+    printf("Sending scoreboard: %s", message.c_str());
     sendTCP(newfd, message.c_str());
 }
 
@@ -530,7 +549,11 @@ void sendHint(int newfd, std::string playerID) {
             message = "RHL NOK\n";
         }
         else {
-            message = "RHL OK " + word + ".jpg " + std::to_string(image.size()) + " " + image + "\n";
+            message = "RHL OK hint.jpg " + std::to_string(image.size()) + " " + image + "\n";
+            // store message in file
+            std::ofstream file("hint.jpg");
+            file << image;
+            file.close();
         }
     }
     sendTCP(newfd, message.c_str());
@@ -595,7 +618,7 @@ void makePlay(std::string playerID, char letter, int trial) {
     std::string status, message, word;
     std::vector<int> pos;
     int maxErrorsN, errorsMade, missing;
-    if (! verifyExistence("GAMES/GAME_" + playerID)) {
+    if (! verifyExistence("GAMES/GAME_" + playerID) ) {
         message = "RLG ERR\n";
         sendUDP(fd, message.c_str(), addr, addrlen);
         return;

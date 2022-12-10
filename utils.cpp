@@ -95,3 +95,12 @@ std::string getDateFormatted(tm *ltm) {
     }
     return year + month + day + "_" + hour + min + sec;
 }
+
+int isNumber(std::string s) {
+    for (size_t i = 0; i < s.length(); i++) {
+        if (!isdigit(s[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
