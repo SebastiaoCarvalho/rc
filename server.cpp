@@ -78,6 +78,9 @@ int main(int argc, char const *argv[])
         // child process
         fd=socket(AF_INET,SOCK_DGRAM,0); //UDP socket
         if(fd==-1) /*error*/exitServer(1);
+        int iSetOption = 1;
+        n = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption, sizeof(iSetOption));
+        if (n == -1) exitServer(1);
         memset(&hints,0,sizeof hints);
         hints.ai_family=AF_INET; // IPv4
         hints.ai_socktype=SOCK_DGRAM; // UDP socket
@@ -186,6 +189,9 @@ int main(int argc, char const *argv[])
         act.sa_handler=SIG_IGN;
         if(sigaction(SIGCHLD,&act,NULL)==-1)/*error*/exitServer(1);
         if((fd=socket(AF_INET,SOCK_STREAM,0))==-1)exitServer(1);//error
+        int iSetOption = 1;
+        n = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption, sizeof(iSetOption));
+        if (n == -1) exitServer(1);
         memset(&hints,0,sizeof hints);
         hints.ai_family=AF_INET;//IPv4
         hints.ai_socktype=SOCK_STREAM;//TCP socket
@@ -490,6 +496,9 @@ std::string getWord(std::string fileName) {
 
 std::string getScoreBoard() {
     std::vector<std::string> files = listDirectory("SCORES");
+    if (files.size() == 0) {
+        return "";
+    }
     std::string scoreboard = "\n----------------------------- TOP " + 
     std::to_string(files.size()) + 
     " SCORES -----------------------------\n";
