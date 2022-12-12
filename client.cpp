@@ -22,8 +22,8 @@ char buffer[1024];           //mudar para 1024
 char inputFromUser[1024];
 std::string playerID;
 std::string currentWord;
-std::string machineIP = "tejo.tecnico.ulisboa.pt"; //O default é o IP da máquina -> DESKTOP-8NS8GE1
-std::string port="58011";     //O default devia ser 58002
+std::string machineIP = "127.0.0.1"; //O default é o IP da máquina -> DESKTOP-8NS8GE1
+std::string port="58002";     //O default devia ser 58002
 
 //  STOI DÁ PROBLEMAS??
 //  LIMITAR NUMERO DE PORTS
@@ -298,7 +298,13 @@ int main(int argc, char const *argv[]) {
             n = connect(fd, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
 
-            n = write(fd, buffer, strlen(buffer));
+            int nw = 0;
+            char * ptr = buffer;
+            size_t nn = strlen(buffer);
+            while(nn>0) {
+                if ((nw=write(fd, ptr, nn))<=0) exit(1);
+                nn -= nw;
+            }
             if (n == -1) /*error*/ exit(1);
             n = read(fd, buffer, 1024);
             if (n == -1) /*error*/ exit(1);
