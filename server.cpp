@@ -174,6 +174,9 @@ int main(int argc, char const *argv[])
                 
             }
             else {
+                if (verbose) {
+                    printf("Received invalid message from IP address: %s and port: %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                }
                 n=sendto(fd, "ERR\n", 128 ,0 , (struct sockaddr*)&addr, addrlen);
                 if (n==-1)/*error*/ exitServer(1);
             }
@@ -217,20 +220,30 @@ int main(int argc, char const *argv[])
                 message = strip(message);
                 std::vector<std::string> tokens = stringSplit(message, ' ');
                 if (strncmp(buffer, "GSB", 3) == 0) {
+                    if (verbose) {
+                        printf("Received GSB from IP address: %s and port: %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    }
                     sendScoreBoard(newfd);
                 }
                 else if (strncmp(buffer, "GHL", 3) == 0) {
                     std::string playerID = tokens[1];
-                    printf("%s\n", playerID.c_str());
+                    if (verbose) {
+                        printf("Received GHL with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    }                    
                     sendHint(newfd, playerID);
                 }
                 else if (strncmp(buffer, "STA", 3) == 0) {
                     std::string playerID = tokens[1];
-                    printf("%s\n", playerID.c_str());
+                    if (verbose) {
+                        printf("Received STA with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    }
                     sendState(newfd, playerID);
                 }
                 else {
                     message = "ERR\n";
+                    if (verbose) {
+                        printf("Received invalid message from IP address: %s and port: %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    }
                     int nw = 0;
                     int i = 0;
                     while(n>0) {
@@ -383,6 +396,7 @@ void startGame(std::string playerID) {
         std::string maxErrors = std::to_string(errorsN);
         message = "RSG " + status + " " + letterNumber + " " + maxErrors + "\n";
     }
+    if (verbose) printf("Replying with : %s", message.c_str());
     sendUDP(fd, message.c_str(), addr, addrlen); // TODO : check if sends using n = 
 }
 
@@ -527,7 +541,9 @@ void sendScoreBoard(int newfd) {
     else {
         message = "RSB OK scoreboard.txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
     }
-    printf("Sending scoreboard: %s", message.c_str());
+    if (verbose) {
+        printf("Replying with scoreboard\n");
+    }
     sendTCP(newfd, message.c_str());
 }
 
@@ -566,6 +582,9 @@ void sendHint(int newfd, std::string playerID) {
             file << image;
             file.close();
         }
+    }
+    if (verbose) {
+        printf("Replying with hint\n");
     }
     sendTCP(newfd, message.c_str());
 }
@@ -621,7 +640,9 @@ void sendState(int newfd, std::string playerID) {
     else {
         message = "RST NOK\n";
     }
-    printf("%s", message.c_str());
+    if (verbose) {
+        printf("Replying with state\n");
+    }
     sendTCP(newfd, message.c_str());
 }
 
@@ -680,7 +701,9 @@ void makePlay(std::string playerID, char letter, int trial) {
     else if (status == "OVR") {
         storeGame(playerID, "F");
     }
-    printf("%s", message.c_str());
+    if (verbose) {
+        printf("Replying with: %s\n", message.c_str());
+    }    
     sendUDP(fd,message.c_str(), addr, addrlen);
 }
 
