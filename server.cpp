@@ -536,9 +536,11 @@ void sendScoreBoard(int newfd) {
     std::string scoreboard = getScoreBoard();
     std::string message;
     if (scoreboard == "") {
+        printf("asdsadas");
         message = "RSB EMPTY\n";
     }
     else {
+        printf("eee");
         message = "RSB OK scoreboard.txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
     }
     if (verbose) {
