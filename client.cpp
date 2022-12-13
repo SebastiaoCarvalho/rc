@@ -14,30 +14,31 @@
 #include <sys/socket.h>
 #include "utils.h"
 
-FILE *scoreboard;
 int fd,errcode;
 ssize_t n;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
-char buffer[1024];           //mudar para 1024
-char inputFromUser[1024];
-std::string playerID;
-std::string currentWord;
 std::string machineIP = "tejo.tecnico.ulisboa.pt"; //O default é o IP da máquina -> DESKTOP-8NS8GE1
 std::string port="58011";     //O default devia ser 58002
 
 //  STOI DÁ PROBLEMAS??
 //  LIMITAR NUMERO DE PORTS
 //  PROBLEMA A USAR CIN?
+// COTA BUFFER FICA COM LIXO DO NADA, CHECKAR ISSO
 
 int main(int argc, char const *argv[]) {
     
     void readFlags(int argc, char const *argv[]);
     std::string getWordFromBuffer(char* buffer, std::string filename);
 
+    FILE *scoreboard;
+    FILE *state;
+    char buffer[1024];           //mudar para 1024
+    std::string playerID;
+    std::string currentWord;
+    //int gameActive = 0;
     int trial = 1; 
-    int maxErrors = 0; 
 
     readFlags(argc, argv);
     memset(&hints,0,sizeof hints);
@@ -51,69 +52,58 @@ int main(int argc, char const *argv[]) {
         std::string word; 
         std::cin >> word;
         
-        printf("ddd");
-        printf("%s", word.c_str());
-        //printf("%s", inputFromUser);
         if(strcmp(word.c_str(),"start") == 0 or strcmp(word.c_str(),"sg") ==0) {
             fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) /*error*/exit(1);
+            if(fd==-1) exit(1);
 
             memset(&hints,0,sizeof hints);
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_DGRAM; //UDP socket
 
-            /* Read playerID */
-            char id[6];
-            scanf("%s", id);
+            // Read playerID 
+            std::string id;
+            std::cin >> id;
 
-            if(id[0] == '1' or strlen(id) != 6) {
+            if(id[0] == '1' or id.length() != 6) {
                 printf("Invalid playerID. Please make sure that your playerID starts with '0' and has six digits.\n");
                 continue;
             }
         
-            /* Empty buffer */
-            memset(buffer, 0 , 1024);
-
-            /* Save playerID */
+            // Save playerID 
             playerID = id;
 
-            /* Create message to send to GS */
-            memcpy(buffer, "SNG", 3);
-            memcpy(buffer+3, " ", 1);
-            memcpy(buffer+4, playerID.c_str(), 6);
-            memcpy(buffer+10, "\n", 1);
+            // Create message 
+            std::string messageToSend;
+            messageToSend = "SNG " + playerID + "\n";
 
-            //printf("Sending %d bytes as %s to GS:\n",strlen(buffer),  buffer);
-            n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
+            // Send message
+            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+            if (n == -1) exit(1);
+            
+            // Empty buffer 
+            memset(buffer, 0 , 1024);
 
-            int timeout=2;
-            int n = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
-            printf("n: %d", n);
-
-            /* Receive GS with the status, checking if the player can start a game */
+            // Receive GS with the status, checking if the player can start a game 
             n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
+            if (n == -1) exit(1);
+            // Remove \n from last position
             buffer[n-1] = '\0';
-            //printf("%s", buffer);
 
-            /* Split the buffer information into different words */
+            // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
-            /* If game is good to go, create word, else print error */
+            // Empty buffer 
+            memset(buffer, 0 , 1024);
+            // If game is good to go, create word, else print error message
             if (strcmp(parameters[1].c_str(), "OK") == 0) {
-                /* Create empty  word*/
-                std::string wordSpaces = repeat("_ ", stoi(parameters[2]));
+                // Create empty  word
+                std::string wordSpaces = repeat("_ ", atoi(parameters[2].c_str()));
                 wordSpaces[wordSpaces.length()-1] = '\0';
+                // Save word
                 currentWord = wordSpaces;
-
-                /* Remove '\n' from last maxErrors (since the server replies with \n at the end)*/
-                //std::string maxErrorsStr = parameters[3].substr(0, parameters[3].length()-1);
                 
-                /* Declare max errors */
-                maxErrors = stoi(parameters[3]);
-                
-                printf("New game started. Guess %s letter word: %s. You have %s attempts.\n", parameters[2].c_str(), wordSpaces.c_str(), parameters[3].c_str());
+                printf("New game started. Guess a %s letter word: %s. You can miss up to %s times.\n", parameters[2].c_str(), wordSpaces.c_str(), parameters[3].c_str());
+                //gameActive = 1;
                 close(fd);
             }
             else {
@@ -123,13 +113,12 @@ int main(int argc, char const *argv[]) {
         }
         else if(strcmp(word.c_str(),"play") == 0 or strcmp(word.c_str(),"pl") ==0) {
             fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) /*error*/exit(1);
+            if(fd==-1) exit(1);
 
             memset(&hints,0,sizeof hints);
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_DGRAM; //UDP socket
 
-            /* Read first word */
             std::string letter;
             std::cin >> letter;
 
@@ -138,7 +127,6 @@ int main(int argc, char const *argv[]) {
                 continue;
             }
             
-
             if(playerID.length() == 0) {
                 printf("You have to start a game first.\n");
                 continue;
@@ -151,52 +139,32 @@ int main(int argc, char const *argv[]) {
             }
             */
             
+            /* Create message to send*/
+            std::string messageToSend;
+            messageToSend = "PLG " + playerID + " " + letter + " " + std::to_string(trial) + "\n";
+
+            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+            if (n == -1) exit(1);
             
             /* Empty buffer */
             memset(buffer, 0 , 1024);
-            
-            /* Convert trial to string */
-            std::string trialStr = std::to_string(trial);
-            //printf("%d", (int)trialStr.length());
-            
-            //printf("%d", (int)trialStr.length());
-            /* Create message to send to GS */
-            memcpy(buffer, "PLG", 3);
-            memcpy(buffer+3, " ", 1);
-            memcpy(buffer+4, playerID.c_str(), 6);
-            memcpy(buffer+10, " ", 1);
-            memcpy(buffer+11, letter.c_str( ), 1);
-            memcpy(buffer+12, " ", 1);
-            memcpy(buffer+13, trialStr.c_str(), trialStr.length());
-            memcpy(buffer+13+trialStr.length(), "\n", 1);
-
-            //printf("%s", buffer);
-            //printf("%d",(int)strlen(buffer));
-            n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
-
-            int timeout=2;
-            int n = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
-            printf("n: %d", n);
 
             /* Receive status from GS to check if it is a hit, miss, e.t.c */
             n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
-            /* Delete \n from buffer */
+            if (n == -1) exit(1);
             buffer[n-1] = '\0';
-            //printf("%s %d", buffer, (int)strlen(buffer));
             
             /* Split the buffer information into different words */
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
-            //printf("%s", parameters[1].c_str());
-            //printf("%d", (int)parameters.size());
+
+            // Empty buffer 
+            memset(buffer, 0 , 1024);
 
             /* If ok, replace the letters in the given positions */
             if (strcmp(parameters[1].c_str(), "OK") == 0) {
-                for (int i=0; i<stoi(parameters[3]); i++) {
-                    //printf("%s %s", parameters[3].c_str(), parameters[4+i].c_str());
+                for (int i=0; i<atoi(parameters[3].c_str()); i++) {
                     int pos;
-                    pos = stoi(parameters[4+i]);
+                    pos = atoi(parameters[4+i].c_str());
                     currentWord[(pos-1)*2] = letter[0];
                 }
                 trial += 1;
@@ -217,11 +185,8 @@ int main(int argc, char const *argv[]) {
             else if (strcmp(parameters[1].c_str(), "NOK") == 0) {
                 printf("The letter %s is not part of the word: %s.\n", letter.c_str(), currentWord.c_str());
                 trial += 1;
-                maxErrors -= 1;
             }
             else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
-                //DAR PRINT À PALVRA CERTA?
-                //Como parar o jogo?
                 printf("You have exceeded the maximum number of errors. You've lost the game.\n");
                 trial = 1; 
             }
@@ -237,19 +202,17 @@ int main(int argc, char const *argv[]) {
             else {
                 exit(1);
             }
-
             close(fd);
         }
-        //SE O PRIMEIRO COMANDO FOR GUESS DÁ SEGMETNATION FAULT
         else if(strcmp(word.c_str(),"guess") == 0 or strcmp(word.c_str(),"gw") ==0) {
             fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) /*error*/exit(1);
+            if(fd==-1) exit(1);
 
             memset(&hints,0,sizeof hints);
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_DGRAM; //UDP socket
 
-            /* Read word to be guessed */
+            // Read word to be guessed 
             std::string guessedWord;
             std::cin >> guessedWord;
 
@@ -258,29 +221,28 @@ int main(int argc, char const *argv[]) {
                 continue;
             }
                 
-            /* Empty buffer */
-            memset(buffer, 0 , 1024);
-            
-            /* Convert trial to string */
-            std::string trialStr = std::to_string(trial);
+            if(playerID.length() == 0) {
+                printf("You have to start a game before trying to guess the word.\n");
+                continue;
+            }
 
-            /* Create message to send to GS */
-            memcpy(buffer, "PWG", 3);
-            memcpy(buffer+3, " ", 1);
-            memcpy(buffer+4, playerID.c_str(), 6);
-            memcpy(buffer+10, " ", 1);
-            memcpy(buffer+11, guessedWord.c_str(), guessedWord.length());
-            memcpy(buffer+11+guessedWord.length(), " ", 1);
-            memcpy(buffer+11+guessedWord.length()+1, trialStr.c_str(), trialStr.length());
-            memcpy(buffer+11+guessedWord.length()+1+trialStr.length(), "\n", 1);
-            n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
-            /* Receive status from GS to check if it is a hit, miss, e.t.c */
+            //Create message
+            std::string messageToSend;
+            messageToSend = "PWG " + playerID + " " + guessedWord + " " + std::to_string(trial) + "\n";
+            
+            //Send message
+            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+            if (n == -1) exit(1);
+            
+            // Empty buffer 
+            memset(buffer, 0 , 1024);
+
+            // Receive status from GS to check if it is a hit, miss, e.t.c 
             n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
+            if (n == -1) //error exit(1);
             buffer[n-1] = '\0';
             
-            /* Split the buffer information into different words */
+            // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
 
@@ -291,7 +253,6 @@ int main(int argc, char const *argv[]) {
             else if (strcmp(parameters[1].c_str(), "NOK") == 0) {
                 printf("The word %s is not the right word.\n", guessedWord.c_str());
                 trial += 1;
-                maxErrors -= 1;
             }
             else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
                 printf("You have exceeded the maximum number of errors. You've lost the game.\n");
@@ -311,8 +272,6 @@ int main(int argc, char const *argv[]) {
             }
             close(fd);            
         }
-        //DE VEZ EM QUANDO DÁ ERRO PORQUE O TEJO NÃO MANDA O RESTO DA DATA P
-        // UDP SOCKETS ABRIR NO INICIO?
         else if(strcmp(word.c_str(),"scoreboard") == 0 or strcmp(word.c_str(),"sb") ==0) {
             fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
             if(fd==-1) /*error*/exit(1);
@@ -321,7 +280,17 @@ int main(int argc, char const *argv[]) {
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_STREAM; //TCP socket
             
-            //int timeout = 5;
+            int fSize = 0;
+            int iterationSize = 4;
+            int wordsRead = 0;
+            //BUG DO DEMON APARECE LIXO NO BUFFER DO START GAME
+            char status[5];
+            memset(status, 0, 6);
+            std::string sizeOfFile;
+            std::string filename;
+            int  i = 0;
+            int checkExit = 0;
+
             /* Empty buffer */
             memset(buffer, 0 , 1024);
 
@@ -335,65 +304,82 @@ int main(int argc, char const *argv[]) {
             n = write(fd, buffer, strlen(buffer));
             if (n == -1) /*error*/ exit(1);
             
-            //int n = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
-            //printf("n: %d", n);
-            
-            n = read(fd, buffer, 1024);
-            if (n == -1) /*error*/ exit(1);
-            
-            printf("Buffer: %s", buffer);
-            printf("%ld", n);
-
-            /* Read status */
-            char status[5];
-            std::string sizeOfFile;
-
-            
-            // Buffer+4 to skip the word "RSB " 
-            sscanf(buffer+4, "%s", status);
-
-            std::string filename;
-            int advance;
-
-            if(strcmp(status,"EMPTY") == 0) {
-                printf("The scoreboard is still empty.\n");
-            }
-            else if (strcmp(status, "OK") == 0) {
-                // Get filename and file size
-                filename = getWordFromBuffer(buffer+4+strlen(status)+1, filename);
-                sizeOfFile = getWordFromBuffer(buffer+4+strlen(status)+1+filename.length()+1, sizeOfFile);
-                
-                // Write the rest of the buffer 
-                scoreboard = fopen(filename.c_str(), "w");
-                advance = 4+strlen(status)+1+filename.length()+1+sizeOfFile.length()+1;
-                fprintf(scoreboard, "%s", buffer+advance);
-                printf("%s", buffer+advance);
-
-                int toWrite = atoi(sizeOfFile.c_str()) + advance - 1024; 
-
-                // Clear buffer 
-                memset(buffer, 0 , 1024);
-
-                // Read the rest of the buffer 
-                //while((n = read(fd, buffer, 1024) != 0)) {
-                while(toWrite > 0) {
-                    //if (n == -1) //error 
-
-                    n = read(fd, buffer, 1024);
-                    if (n == -1) exit(1);
-
-                    // Write buffer 
-                    fprintf(scoreboard, "%s", buffer);
-                    printf("%s", buffer);
-
-                    // Update toWrite   
-                    toWrite -= 1024;
-                    
-                    // Clear buffer for next write
-                    memset(buffer, 0 , 1024);
+            while((n = read(fd, buffer, iterationSize)) != 0) {
+                if (n == -1)  exit(1);
+                //printf("%s %d\n", buffer, buffer[0]);
+                //Da primeira vez lê apenas "RSB "
+                if (wordsRead == 0) { 
+                    wordsRead+=1;
+                    iterationSize = 1;
                 }
-                fclose(scoreboard);
-            }         
+                //Ler palavra status
+                else if (wordsRead == 1) {
+                    if (buffer[0] != 32 && buffer[0] != 10){
+                        memcpy(status+i, buffer, 1);
+                        i+=1;
+                    }
+                    else {
+                        //printf("%s\n", status);
+                        if(strcmp(status,"EMPTY") == 0) {
+                            printf("The scoreboard is still empty.\n");
+                            checkExit = 1;
+                        }
+                        else if(strcmp(status, "OK") != 0 && strcmp(status, "EMPTY") != 0) {
+                            printf("Something went wrong. Please try again.\n");
+                            close(fd);
+                            exit(1);
+                        }
+                        else if (strcmp(status, "OK") == 0) {
+                            wordsRead+=1;
+                            i = 0; 
+                        }
+                    }
+                }
+                // Ler nome do ficheiro
+                else if (wordsRead == 2) {
+                    if (buffer[0] != 32) {
+                        filename += buffer;
+                        continue;
+                    } else {
+                        wordsRead+=1;
+                        i = 0;
+                    }
+                }
+                // Ler tamanho do ficheiro
+                else if (wordsRead == 3) {
+                    if (buffer[0] != 32) {
+                        sizeOfFile += buffer;
+                        continue;
+                    } else {
+                        wordsRead+=1;
+                        fSize = atoi(sizeOfFile.c_str());
+                        iterationSize = 256;
+                        scoreboard = fopen(filename.c_str(), "w");
+                    }   
+                }
+                // Ler o ficheiro
+                else if (wordsRead == 4) {
+                    //printf("%d %ld\n", fSize, n);
+                    //Última leitura
+                    if (fSize < 256) {
+                        buffer[n-4]='\0';
+                        checkExit = 1;
+                        fprintf(scoreboard, "%s", buffer);
+                        printf("%s\n", buffer); 
+                        fclose(scoreboard);  
+                        break;
+                    } else {
+                        fSize -= 256;
+                        if (fSize < 256) {
+                            iterationSize = fSize;
+                        }
+                        fprintf(scoreboard, "%s", buffer);
+                        printf("%s", buffer); 
+                    }
+                }
+                //printf("%d\n", wordsRead);
+                memset(buffer,0,1024);
+            }  
             close(fd);
         }
         else if(strcmp(word.c_str(),"hint") == 0 or strcmp(word.c_str(),"h") ==0) {
@@ -404,6 +390,21 @@ int main(int argc, char const *argv[]) {
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_STREAM; //UDP socket
             
+            if(playerID.length() == 0) {
+                printf("You have to start a game first.\n");
+                continue;
+            }
+
+            int fSize = 0;
+            int iterationSize = 4;
+            int wordsRead = 0;
+            //BUG DO DEMON APARECE LIXO NO BUFFER DO START GAME
+            char status[5];
+            memset(status, 0, 1024);
+            std::string sizeOfFile;
+            std::string filename;
+            int checkExit = 0;
+            int i = 0;
 
             /* Empty buffer */
             memset(buffer, 0 , 1024);
@@ -419,70 +420,108 @@ int main(int argc, char const *argv[]) {
 
             n = write(fd, buffer, strlen(buffer));
             if (n == -1) /*error*/ exit(1);
-            n = read(fd, buffer, 1024);
-            if (n == -1) /*error*/ exit(1);
             
-            printf("%s", buffer);
+            memset(buffer, 0 , 1024);
 
-            /* Read status */
-            char status[5];
-            std::string sizeOfFile;
-
-            /* Buffer+4 to skip the word "RSB " */
-            sscanf(buffer+4, "%s", status);
-
-            std::string filename;
-            int advance;
-
-            if(strcmp(status,"NOK") == 0) {
-                printf("Something went wrong. Please try again.\n");
-            }
-            else if (strcmp(status, "OK") == 0) {
-                // Get filename and file size
-                filename = getWordFromBuffer(buffer+4+strlen(status)+1, filename);
-                sizeOfFile = getWordFromBuffer(buffer+4+strlen(status)+1+filename.length()+1, sizeOfFile);
-                
-                // Write the rest of the buffer 
-                scoreboard = fopen(filename.c_str(), "w");
-                advance = 4+strlen(status)+1+filename.length()+1+sizeOfFile.length()+1;
-                fprintf(scoreboard, "%s", buffer+advance);
-                printf("%s", buffer+advance);
-
-                int toWrite = atoi(sizeOfFile.c_str()) + advance - 1024; 
-
-                // Clear buffer 
-                memset(buffer, 0 , 1024);
-
-                // Read the rest of the buffer 
-                //while((n = read(fd, buffer, 1024) != 0)) {
-                while(toWrite > 0) {
-                    //if (n == -1) //error 
-
-                    n = read(fd, buffer, 1024);
-                    if (n == -1) exit(1);
-
-                    // Write buffer 
-                    fprintf(scoreboard, "%s", buffer);
-                    printf("%s", buffer);
-
-                    // Update toWrite   
-                    toWrite -= 1024;
-                    
-                    // Clear buffer for next write
-                    memset(buffer, 0 , 1024);
+            while((n = read(fd, buffer, iterationSize)) != 0) {
+                if (n == -1)  exit(1);
+                //printf("%s\n", buffer);
+                //Da primeira vez lê apenas "RSB "
+                if (wordsRead == 0) { 
+                    wordsRead+=1;
+                    iterationSize = 1;
                 }
-                fclose(scoreboard);
-            }         
+                else if (wordsRead == 1) {
+                    if (buffer[0] != 32 && buffer[0] != 10){
+                        memcpy(status+i, buffer, 1);
+                        i+=1;
+                    }
+                    else {
+                        printf("%s\n", status);
+                        if(strcmp(status,"NOK") == 0) {
+                            printf("Something went wrong. Please try again.\n");
+                            checkExit = 1;
+                        }
+                        else {
+                        //STATUS = FIN OU ACT
+                        //printf("%s", status);
+                            wordsRead+=1;
+                            iterationSize = 1; 
+                            i = 0;
+                        }
+                    }
+                }
+                // Ler nome do ficheiro
+                else if (wordsRead == 2) {
+                    if (buffer[0] != 32) {
+                        filename += buffer;
+                        continue;
+                    } else {
+                        wordsRead+=1;                    
+                    }
+                }
+                // Ler tamanho do ficheiro
+                else if (wordsRead == 3) {
+                    if (buffer[0] != 32) {
+                        sizeOfFile += buffer;
+                        continue;
+                    } else {
+                        wordsRead+=1;
+                        fSize = atoi(sizeOfFile.c_str());
+                        //printf("%d\n", fSize);
+                        iterationSize = 128;
+                        state = fopen(filename.c_str(), "w");
+                    }   
+                }
+                // Ler o ficheiro
+                else if (wordsRead == 4) {
+                    //printf("%d %ld %d\n", fSize, n, iterationSize);
+                    //Última leitura
+                    if (fSize < 128) {
+                        buffer[n-1]='\0';
+                        checkExit = 1;
+                        fprintf(state, "%s", buffer);
+                        memset(buffer,0,1024);
+                        //printf("%s\n", buffer); 
+                        fclose(state);  
+                        break;
+                    } else {
+                        fSize -= n;
+                        if (fSize < 128) {
+                            iterationSize = fSize;
+                        }
+                        fprintf(state, "%s", buffer);
+                        printf("%ld", strlen(buffer)); 
+                        memset(buffer,0,1024);
+                    }
+                }
+                //printf("%d\n", wordsRead);
+                memset(buffer,0,1024);
+            }   
             close(fd);
         }
+        //FALTA VER CASOS DE EXIT
         else if(strcmp(word.c_str(),"state") == 0 or strcmp(word.c_str(),"st") ==0) {
             fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
             if(fd==-1) /*error*/exit(1);
 
             memset(&hints,0,sizeof hints);
             hints.ai_family=AF_INET; //IPv4
-            hints.ai_socktype=SOCK_STREAM; //UDP socket
-            
+            hints.ai_socktype=SOCK_STREAM; //TCP socket
+
+            if(playerID.length() == 0) {
+                printf("You have to start a game first.\n");
+                continue;
+            }
+
+            int fSize = 0;
+            int iterationSize = 4;
+            int wordsRead = 0;
+            char status[3];
+            std::string sizeOfFile;
+            std::string filename;
+            int checkExit = 0;
+
             /* Empty buffer */
             memset(buffer, 0 , 1024);
 
@@ -492,104 +531,77 @@ int main(int argc, char const *argv[]) {
             memcpy(buffer+4, playerID.c_str(), 6);
             memcpy(buffer+10, "\n", 1);
             
+            //printf("%s", buffer);
             n = connect(fd, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
             n = write(fd, buffer, strlen(buffer));
             if (n == -1) /*error*/ exit(1);
-            n = read(fd, buffer, 1024);
-            if (n == -1) /*error*/ exit(1);
             
-            printf("%s", buffer);
-
-            /* Read status */
-            char status[3];
-            std::string sizeOfFile;
-
-            /* Buffer+4 to skip the word "RST " */
-            sscanf(buffer+4, "%s", status);
-
-            std::string filename;
-            int advance;
-
-            if(strcmp(status,"NOK") == 0) {
-                printf("You haven't completed a game yet. To play start a game type: 'sg (yourID)'\n");
-            }
-            else if (strcmp(status, "ACT") == 0) {
-                printf("The summary of your current game is:\n");
-                // Get filename and file size
-                filename = getWordFromBuffer(buffer+4+strlen(status)+1, filename);
-                sizeOfFile = getWordFromBuffer(buffer+4+strlen(status)+1+filename.length()+1, sizeOfFile);
-                
-    
-                // Write the rest of the buffer 
-                scoreboard = fopen(filename.c_str(), "w");
-                advance = 4+strlen(status)+1+filename.length()+1+sizeOfFile.length()+1;
-                fprintf(scoreboard, "%s", buffer+advance);
-                printf("%s", buffer+advance);
-
-                int toWrite = atoi(sizeOfFile.c_str()) + advance - 1024; 
-
-                // Clear buffer 
-                memset(buffer, 0 , 1024);
-
-                // Read the rest of the buffer 
-                //while((n = read(fd, buffer, 1024) != 0)) {
-                while(toWrite > 0) {
-                    //if (n == -1) //error 
-
-                    n = read(fd, buffer, 1024);
-                    if (n == -1) exit(1);
-
-                    // Write buffer 
-                    fprintf(scoreboard, "%s", buffer);
-                    printf("%s", buffer);
-
-                    // Update toWrite   
-                    toWrite -= 1024;
-                    
-                    // Clear buffer for next write
-                    memset(buffer, 0 , 1024);
+            while((n = read(fd, buffer, iterationSize)) != 0) {
+                if (n == -1)  exit(1);
+                //printf("%s %d\n", buffer, buffer[0]);
+                //Da primeira vez lê apenas "RST "
+                if (wordsRead == 0) { 
+                    wordsRead+=1;
                 }
-                fclose(scoreboard);
-            }         
-            else if (strcmp(status, "FIN") == 0) {
-                printf("The summary of your most recently finished   game is:\n");
-                // Get filename and file size
-                filename = getWordFromBuffer(buffer+4+strlen(status)+1, filename);
-                sizeOfFile = getWordFromBuffer(buffer+4+strlen(status)+1+filename.length()+1, sizeOfFile);
-                
-    
-                // Write the rest of the buffer 
-                scoreboard = fopen(filename.c_str(), "w");
-                advance = 4+strlen(status)+1+filename.length()+1+sizeOfFile.length()+1;
-                fprintf(scoreboard, "%s", buffer+advance);
-                printf("%s", buffer+advance);
-
-                int toWrite = atoi(sizeOfFile.c_str()) + advance - 1024; 
-
-                // Clear buffer 
-                memset(buffer, 0 , 1024);
-
-                // Read the rest of the buffer 
-                //while((n = read(fd, buffer, 1024) != 0)) {
-                while(toWrite > 0) {
-                    //if (n == -1) //error 
-
-                    n = read(fd, buffer, 1024);
-                    if (n == -1) exit(1);
-
-                    // Write buffer 
-                    fprintf(scoreboard, "%s", buffer);
-                    printf("%s", buffer);
-
-                    // Update toWrite   
-                    toWrite -= 1024;
-                    
-                    // Clear buffer for next write
-                    memset(buffer, 0 , 1024);
+                //Ler palavra status
+                else if (wordsRead == 1) { 
+                    if(strcmp(status,"NOK") == 0) {
+                        printf("You haven't completed a game yet. To play start a game type: 'sg (yourID)'\n");
+                        checkExit = 1;
+                    }
+                    else {
+                        //STATUS = FIN OU ACT
+                        //printf("%s", status);
+                            wordsRead+=1;
+                            iterationSize = 1; 
+                    }
                 }
-                fclose(scoreboard);
-            }
+                // Ler nome do ficheiro
+                else if (wordsRead == 2) {
+                    if (buffer[0] != 32) {
+                        filename += buffer;
+                        continue;
+                    } else {
+                        wordsRead+=1;
+                    }
+                }
+                // Ler tamanho do ficheiro
+                else if (wordsRead == 3) {
+                    if (buffer[0] != 32) {
+                        sizeOfFile += buffer;
+                        continue;
+                    } else {
+                        wordsRead+=1;
+                        fSize = atoi(sizeOfFile.c_str());
+                        iterationSize = 256;
+                        scoreboard = fopen(filename.c_str(), "w");
+                    }   
+                }
+                // Ler o ficheiro
+                else if (wordsRead == 4) {
+                    //printf("%d %ld\n", fSize, n);
+                    //Última leitura
+                    if (fSize < 256) {
+                        buffer[n-2]='\0';
+                        checkExit = 1;
+                        fprintf(scoreboard, "%s", buffer);
+                        printf("%s\n", buffer); 
+                        fclose(scoreboard);  
+                        break;
+                    } else {
+                        fSize -= 256;
+                        if (fSize < 256) {
+                            iterationSize = fSize;
+                        }
+                        fprintf(scoreboard, "%s", buffer);
+                        printf("%s", buffer); 
+                    }
+                }
+                //printf("%d\n", wordsRead);
+                //printf("%d", wordsRead);
+                memset(buffer,0,1024);
+            }  
             close(fd);
         }
         else if(strcmp(word.c_str(),"quit") == 0) {
@@ -600,68 +612,102 @@ int main(int argc, char const *argv[]) {
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_DGRAM; //UDP socket
 
+            /*
+            if(gameActive == 0) {
+                printf("There's no game undergoing. If you wish to start a game, type: 'sg (yourID)'\n");
+                continue;
+            }*/
+            
+            // Create message 
+            std::string messageToSend;
+            messageToSend = "QUT " + playerID + "\n";
 
-            /* Empty buffer */
+            // Send message 
+            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+            if (n == -1) /*error*/ exit(1);
+
+            // Empty buffer 
             memset(buffer, 0 , 1024);
 
-            /* Create message to send to GS */
-            memcpy(buffer, "QUT", 3);
-            memcpy(buffer+3, " ", 1);
-            memcpy(buffer+4, playerID.c_str(), 6);
-            memcpy(buffer+10, "\n", 1);
-            n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
-            /* Receive GS with the status, checking if a game is underway */
+            // Receive GS with the status, checking if a game is underway 
             n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
-            //printf("%s", buffer);
+            if (n == -1) exit(1);
             buffer[n-1] = '\0';
             
-            /* Split the buffer information into different words */
+            // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
             if(strcmp(parameters[1].c_str(), "ERR") == 0){
-                printf("You can't quit the game because you don't have a game ongoing.\n");            }
-            else {
+                printf("Somethign went wrong. Please try again.\n");            }
+            else if (strcmp(parameters[1].c_str(), "OK") == 0) {
                 printf("You have successfully quit the game.\n");
+                //gameActive = 0;
+            }
+            else {
+                exit(1);
             }
             close(fd);
         }
         else if(strcmp(word.c_str(),"exit") == 0) {
             fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) /*error*/exit(1);
-
+            if(fd==-1) exit(1);
 
             memset(&hints,0,sizeof hints);
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_DGRAM; //UDP socket
 
-            /* Empty buffer */
+            /*
+            if(gameActive == 0) {
+                printf("There's no game undergoing. If you wish to start a game, type: 'sg (yourID)'\n");
+                freeaddrinfo(res);
+                close(fd);
+                exit(0);
+            }
+            */
+
+            //Create message
+            std::string messageToSend;
+            messageToSend = "QUT " + playerID + "\n";
+
+            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+            if (n == -1) exit(1);
+
+            // Empty buffer 
             memset(buffer, 0 , 1024);
 
-            /* Create message to send to GS */
-            memcpy(buffer, "QUT", 3);
-            memcpy(buffer+3, " ", 1);
-            memcpy(buffer+4, playerID.c_str(), 6);
-            memcpy(buffer+10, "\n", 1);
-            n = sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
-            freeaddrinfo(res);
+            // Receive GS with the status, checking if a game is underway 
+            n = recvfrom(fd, buffer, 1024, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+            if (n == -1) exit(1);
+            buffer[n-1] = '\0';
+            
+            // Split the buffer information into different words 
+            std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
+
+            if(strcmp(parameters[1].c_str(), "ERR") == 0){
+                printf("Something went wrong. Please try again.\n");              }
+            else if (strcmp(parameters[1].c_str(), "OK") == 0) {
+                printf("You have successfully quit the game.\n");
+                //gameActive = 0;
+                freeaddrinfo(res);
+                close(fd);
+                exit(0);
+            }
+            else {
+                exit(1);
+            }
             close(fd);
-            exit(0);
         }
         else {
             printf("Invalid command, please try again.\n");
-            /* Read useless information from line (if there are more than two arguments) and clear buffer*/
+            // Read useless information from line (if there are more than two arguments) and clear buffer
             fgets(buffer, 1024, stdin);
             memset(buffer, 0 , 1024);
             continue;
         }
     }
-
-    freeaddrinfo(res);
-    close(fd);
-    exit(0);
+    //freeaddrinfo(res);
+    //close(fd);
+    //exit(0);
 }
 
 void readFlags(int argc, char const *argv[]) {
