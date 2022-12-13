@@ -66,10 +66,10 @@ int main(int argc, char const *argv[]) {
             char id[6];
             scanf("%s", id);
 
-            if(id[0] == '1' or strlen(id) != 6) {
+            /* if(id[0] == '1' or strlen(id) != 6) {
                 printf("Invalid playerID. Please make sure that your playerID starts with '0' and has six digits.\n");
                 continue;
-            }
+            } */
         
             /* Empty buffer */
             memset(buffer, 0 , 1024);
@@ -461,22 +461,27 @@ int main(int argc, char const *argv[]) {
 
                 // Read the rest of the buffer 
                 //while((n = read(fd, buffer, 1024) != 0)) {
+                int sum = 0;
                 while(toWrite > 0) {
                     //if (n == -1) //error 
 
                     n = read(fd, buffer, 1024);
                     if (n == -1) exit(1);
 
+                    if(toWrite - 1024 < 0) {
+                        buffer[n-1] = '\0';
+                    }
+
                     // Write buffer 
                     fprintf(scoreboard, "%s", buffer);
-                    printf("%s", buffer);
 
                     // Update toWrite   
                     toWrite -= 1024;
-                    
+                    sum += n;
                     // Clear buffer for next write
                     memset(buffer, 0 , 1024);
                 }
+                printf("Sum: %d", sum);
                 fclose(scoreboard);
             }         
             close(fd);
