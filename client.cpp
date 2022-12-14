@@ -19,8 +19,8 @@ ssize_t n;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
-std::string machineIP = "tejo.tecnico.ulisboa.pt"; //O default é o IP da máquina -> DESKTOP-8NS8GE1
-std::string port="58011";     //O default devia ser 58002
+std::string machineIP = "127.0.0.1"; //O default é o IP da máquina -> DESKTOP-8NS8GE1
+std::string port="58002";     //O default devia ser 58002
 
 //  STOI DÁ PROBLEMAS??
 //  LIMITAR NUMERO DE PORTS
@@ -488,7 +488,7 @@ int main(int argc, char const *argv[]) {
                         checkExit = 1;
                         fprintf(state, "%s", buffer);
                         memset(buffer,0,1024);
-                        //printf("%s\n", buffer); 
+                        printf("%s\n", buffer); 
                         fclose(state);  
                         break;
                     } else {
@@ -496,7 +496,10 @@ int main(int argc, char const *argv[]) {
                         if (fSize < 128) {
                             iterationSize = fSize;
                         }
+                        std::ofstream filebro(("a"+filename).c_str() , std::ios::app);
+                        filebro << buffer;
                         fprintf(state, "%s", buffer);
+                        printf("%s\n", buffer);
                         printf("%ld", strlen(buffer)); 
                         memset(buffer,0,1024);
                     }
@@ -706,6 +709,8 @@ int main(int argc, char const *argv[]) {
         else {
             printf("Invalid command, please try again.\n");
             // Read useless information from line (if there are more than two arguments) and clear buffer
+            printf("%s\n", buffer);
+            exit(0);
             fgets(buffer, 1024, stdin);
             memset(buffer, 0 , 1024);
             continue;
