@@ -1,3 +1,5 @@
+//FPRINTF NÃO ESCREVE '\0'
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -71,11 +73,6 @@ int main(int argc, char const *argv[]) {
             // Read playerID 
             std::string id;
             std::cin >> id;
-
-            /* if(id[0] == '1' or strlen(id) != 6) {
-                printf("Invalid playerID. Please make sure that your playerID starts with '0' and has six digits.\n");
-                continue;
-            } */
         
             // Save playerID 
             playerID = id;
@@ -89,7 +86,7 @@ int main(int argc, char const *argv[]) {
             if (n == -1) exit(1);
             
             // Empty buffer 
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             while(1) {
                 FD_ZERO(&readfds);
@@ -128,9 +125,16 @@ int main(int argc, char const *argv[]) {
                 gameActive = 1;
                 close(fd);
             }
-            else {
+            else if (strcmp(parameters[1].c_str(), "NOK") == 0) {
                 printf("You can't start a new game. You have to wait for the current game to finish.\n");
                 close(fd);
+            }
+            else if (strcmp(parameters[1].c_str(), "ERR") == 0) {
+                printf("The player ID you provided is wrong. Please make sure your player ID is 6 digits long.\n");
+                close(fd);
+            }
+            else {
+                exit(1);
             }
         }
         else if(strcmp(word.c_str(),"play") == 0 or strcmp(word.c_str(),"pl") ==0) {
@@ -165,7 +169,7 @@ int main(int argc, char const *argv[]) {
             if (n == -1) exit(1);
 
             /* Empty buffer */
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             while(1) {
                 FD_ZERO(&readfds);
@@ -192,7 +196,7 @@ int main(int argc, char const *argv[]) {
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
             // Empty buffer 
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             /* If ok, replace the letters in the given positions */
             if (strcmp(parameters[1].c_str(), "OK") == 0) {
@@ -272,7 +276,7 @@ int main(int argc, char const *argv[]) {
             if (n == -1) exit(1);
             
             // Empty buffer 
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             while(1) {
                 FD_ZERO(&readfds);
@@ -355,7 +359,7 @@ int main(int argc, char const *argv[]) {
             if (n == -1) /*error*/ exit(1);
             
             /* Empty buffer */
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             while(1) {
                 FD_ZERO(&readfds);
@@ -437,7 +441,7 @@ int main(int argc, char const *argv[]) {
                                 printf("%s", buffer); 
                             }
                         }
-                        memset(buffer,0,256);
+                        memset(buffer,0,sizeof(buffer));
                     }
                     break;
                 } else {
@@ -461,7 +465,7 @@ int main(int argc, char const *argv[]) {
             }
 
             int fSize = 0;
-            int iterationSize = 4;
+            int iterationSize = 1;
             int wordsRead = 0;
             int lastRead = 0;
             std::string status;            
@@ -479,14 +483,15 @@ int main(int argc, char const *argv[]) {
             if (n == -1) /*error*/ exit(1);
             
             // Empty buffer 
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             while((n = read(fd, buffer, iterationSize)) != 0) {
                 if (n == -1)  exit(1);
                 //Da primeira vez lê apenas "RSB "
                 if (wordsRead == 0) { 
-                    wordsRead+=1;
-                    iterationSize = 1;
+                    if (strcmp(buffer, " ") == 0) {
+                        wordsRead+=1;
+                    }
                 }
                 else if (wordsRead == 1) {
                     if (strcmp(buffer, " ") != 0 && strcmp(buffer, "\n") != 0){
@@ -495,7 +500,7 @@ int main(int argc, char const *argv[]) {
                     else {
                         //printf("%s\n", status.c_str());
                         if(strcmp(status.c_str(),"NOK") == 0) {
-                            printf("Something went wrong. Please try again.\n");
+                            printf("Something went wrong. Please try again. 1.\n");
                             //Ver como bazar
                         }
                         else if (strcmp(status.c_str(), "OK") == 0) {
@@ -526,7 +531,7 @@ int main(int argc, char const *argv[]) {
                         wordsRead+=1;
                         fSize = atoi(sizeOfFile.c_str());
                         //printf("%d", fSize);
-                        iterationSize = 128;
+                        iterationSize = 1;
                         scoreboard = fopen(filename.c_str(), "w");
                     }   
                 }
@@ -534,25 +539,27 @@ int main(int argc, char const *argv[]) {
                 else if (wordsRead == 4) {
                     //Última leitura ou se o tamanho for menor que a primeira iteração
                     if (lastRead == 1 or fSize < iterationSize) {
-                        //buffer[n-1]='\0';
-                        fprintf(scoreboard, "%s", buffer);
+                        buffer[n]='\0';
+                        fwrite(buffer, sizeof(char), n, scoreboard);
+                        //printf("%s", buffer);   
                         fclose(scoreboard);  
                         break;
                     } else {
-                        fSize -= iterationSize;
-                        if (fSize < iterationSize) {
+                        fSize -= n;
+                        if (fSize <= iterationSize) {
                             iterationSize = fSize;
                             lastRead = 1;
                         }  
                         //printf("%d %ld\n", fSize, n);
-                        //printf("%d\n", iterationSize);
+                        //printf("%d\n", iterationSize); 
                         //printf("%ld\n", sizeof(buffer));
-                        //printf("%d ", buffer[strlen(buffer)-1]);     
-                        fprintf(scoreboard, "%s", buffer);
-                        memset(buffer,0,256);
+                        //printf("%d ", buffer[strlen(buffer)-1]);  
+                        //printf("%s", buffer);   
+                        fwrite(buffer, sizeof(char), n, scoreboard);
+                        memset(buffer,0,sizeof(buffer));
                     }
                 }
-                memset(buffer,0,256);
+                memset(buffer,0,sizeof(buffer));
             }   
             close(fd);
         }
@@ -581,7 +588,7 @@ int main(int argc, char const *argv[]) {
             if (n == -1) /*error*/ exit(1);
             
             /* Empty buffer */
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             int fSize = 0;
             int iterationSize = 4;
@@ -665,7 +672,7 @@ int main(int argc, char const *argv[]) {
                                 printf("%s", buffer);
                             }
                         }
-                        memset(buffer,0,256);
+                        memset(buffer,0,sizeof(buffer));
                     } 
                     break;
                 } else {
@@ -697,7 +704,7 @@ int main(int argc, char const *argv[]) {
             if (n == -1) /*error*/ exit(1);
 
             // Empty buffer 
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             while(1) {
                 FD_ZERO(&readfds);
@@ -760,7 +767,7 @@ int main(int argc, char const *argv[]) {
             if (n == -1) exit(1);
 
             // Empty buffer 
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
 
             while(1) {
                 FD_ZERO(&readfds);
@@ -789,7 +796,7 @@ int main(int argc, char const *argv[]) {
             if(strcmp(parameters[1].c_str(), "ERR") == 0){
                 printf("Something went wrong. Please try again.\n");              }
             else if (strcmp(parameters[1].c_str(), "OK") == 0) {
-                printf("You have successfully quit the game. Closing apllication now\n");
+                printf("You have successfully quit the game. Closing apllication now...\n");
                 gameActive = 0;
                 trial = 1;
                 sleep(1);
@@ -806,7 +813,7 @@ int main(int argc, char const *argv[]) {
             printf("Invalid command, please try again.\n");
             // Read useless information from line (if there are more than two arguments) and clear buffer
             fgets(buffer, 256, stdin);
-            memset(buffer, 0 , 256);
+            memset(buffer, 0 , sizeof(buffer));
             continue;
         }
     }
