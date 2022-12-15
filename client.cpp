@@ -20,13 +20,16 @@ ssize_t n;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
-std::string machineIP = "tejo.tecnico.ulisboa.pt"; //O default é o IP da máquina -> DESKTOP-8NS8GE1
+std::string machineIP = "tejo.tecnico.ulisboa.pt"; //O default é o IP da máquina -> DESKTOP-8NS8GE1 ou 127.0.0.1
 std::string port="58011";     //O default devia ser 58002
 
-//  STOI DÁ PROBLEMAS??
+
 //  LIMITAR NUMERO DE PORTS
-//  PROBLEMA A USAR CIN?
-// COTA BUFFER FICA COM LIXO DO NADA, CHECKAR ISSO
+// Podem jogar dois player diferentes IDs na mesma sessão?
+// Abrir udp logo no inicio?
+// Cena do state de novo. Se não há nenhum jogo a decorrer como posso considerar o current gamme como terminado
+// O que fazer perante um status INV -> abortar o jogo?
+// O que fazer perante um status ERR
 
 int main(int argc, char const *argv[]) {
     
@@ -51,7 +54,7 @@ int main(int argc, char const *argv[]) {
     hints.ai_socktype=SOCK_DGRAM; //UDP socket
     errcode=getaddrinfo(machineIP.c_str(),port.c_str(),&hints,&res);
     if(errcode!=0) /*error*/ exit(1);
-
+    
     while(1) {
     
         std::string word; 
@@ -70,7 +73,7 @@ int main(int argc, char const *argv[]) {
             std::cin >> id;
 
             if(id[0] == '1' or id.length() != 6) {
-                printf("Invalid playerID. Please make sure that your playerID starts with '0' and has six digits.\n");
+                printf("Invalid playerID. Please make sure that your playerID starts with '0' (if your ID only has 5 numbers) and has six digits.\n");
                 continue;
             }
         
@@ -145,21 +148,14 @@ int main(int argc, char const *argv[]) {
             std::cin >> letter;
 
             if(gameActive == 0) {
-                printf("You have to start first.\n");
+                printf("You have to start a game before playing. You can do that by writing the command: 'start (yourID)'.\n");
                 continue;
             }
 
             if (letter.length() != 1) {
-                printf("Invalid letter. Please make sure that you only input one letter.\n");
+                printf("Invalid letter. Please make sure that you only play one letter at a time.\n");
                 continue;
             }
-            
-            /*
-            if('a'>letter && letter[0]<='z') {
-                printf("Invalid letter. Please make sure that your letter is between 'a' and 'z'.\n");
-                continue;
-            }
-            */
             
             /* Create message to send*/
             std::string messageToSend;
@@ -191,7 +187,6 @@ int main(int argc, char const *argv[]) {
             }
             
             buffer[n-1] = '\0';
-            
 
             /* Split the buffer information into different words */
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
@@ -217,6 +212,7 @@ int main(int argc, char const *argv[]) {
                 }
                 printf("Well done! You've gessed the right word: %s.\n", currentWord.c_str());
                 trial = 1;
+                gameActive = 0;
             }
             else if (strcmp(parameters[1].c_str(), "DUP") == 0) {
                 printf("You have already tried that letter. Try another letter please.\n");
@@ -228,9 +224,11 @@ int main(int argc, char const *argv[]) {
             else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
                 printf("You have exceeded the maximum number of errors. You've lost the game.\n");
                 trial = 1; 
+                gameActive = 0;
             }
             else if (strcmp(parameters[1].c_str(), "INV") == 0) {
                 //VER O QUE É ISTO
+                // Abortar jogo?
                 printf("Something went wrong. Restart the program.\n");
                 exit(1);
             }
@@ -304,6 +302,7 @@ int main(int argc, char const *argv[]) {
             if (strcmp(parameters[1].c_str(), "WIN") == 0) { 
                 printf("Great job! You've gessed the right word.\n");
                 trial = 1;
+                gameActive = 0;
             }
             else if (strcmp(parameters[1].c_str(), "NOK") == 0) {
                 printf("The word %s is not the right word.\n", guessedWord.c_str());
@@ -312,6 +311,7 @@ int main(int argc, char const *argv[]) {
             else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
                 printf("You have exceeded the maximum number of errors. You've lost the game.\n");
                 trial = 1; 
+                gameActive = 0;
             }
             else if (strcmp(parameters[1].c_str(), "INV") == 0) {
                 //VER O QUE É ISTO
@@ -357,78 +357,93 @@ int main(int argc, char const *argv[]) {
             /* Empty buffer */
             memset(buffer, 0 , 256);
 
-            while((n = read(fd, buffer, iterationSize)) != 0) {
-                if (n == -1)  exit(1);
-                //Da primeira vez lê apenas "RSB "
-                if (wordsRead == 0) { 
-                    wordsRead+=1;
-                    iterationSize = 1;
-                }
-                //Ler palavra status
-                else if (wordsRead == 1) {
-                    if (strcmp(buffer, " ") != 0 && strcmp(buffer, "\n") != 0){
-                        status += buffer;
-                    }
-                    else {
-                        //printf("%s\n", status);
-                        if(strcmp(status.c_str(),"EMPTY") == 0) {
-                            printf("The scoreboard is still empty.\n");
-                            //ver como bazar
-                        }
-                        else if (strcmp(status.c_str(), "OK") == 0) {
+            while(1) {
+                FD_ZERO(&readfds);
+                FD_SET(fd, &readfds);
+                tv.tv_sec = 2;
+                tv.tv_usec = 0;
+
+                int rv = select(fd+1, &readfds, NULL, NULL, &tv);
+
+                if (rv == 1) {
+                    while((n = read(fd, buffer, iterationSize)) != 0) {
+                        if (n == -1)  exit(1);
+                        //Da primeira vez lê apenas "RSB "
+                        if (wordsRead == 0) { 
                             wordsRead+=1;
+                            iterationSize = 1;
                         }
-                        else {
-                            printf("Something went wrong. Please try again.\n");
-                            close(fd);
-                            exit(1);
+                        //Ler palavra status
+                        else if (wordsRead == 1) {
+                            if (strcmp(buffer, " ") != 0 && strcmp(buffer, "\n") != 0){
+                                status += buffer;
+                            }
+                            else {
+                                //printf("%s\n", status);
+                                if(strcmp(status.c_str(),"EMPTY") == 0) {
+                                    printf("The scoreboard is still empty.\n");
+                                    //ver como bazar
+                                }
+                                else if (strcmp(status.c_str(), "OK") == 0) {
+                                    wordsRead+=1;
+                                }
+                                else {
+                                    printf("Something went wrong. Please try again.\n");
+                                    close(fd);
+                                    exit(1);
+                                }
+                            }
                         }
+                        // Ler nome do ficheiro
+                        else if (wordsRead == 2) {
+                            if (strcmp(buffer, " ") != 0) {
+                                filename += buffer;
+                                continue;
+                            } else {
+                                wordsRead+=1;
+                            }
+                        }
+                        // Ler tamanho do ficheiro
+                        else if (wordsRead == 3) {
+                            if (strcmp(buffer, " ") != 0) {
+                                sizeOfFile += buffer;
+                                continue;
+                            } else {
+                                wordsRead+=1;
+                                fSize = atoi(sizeOfFile.c_str());
+                                iterationSize = 100;
+                                scoreboard = fopen(filename.c_str(), "w");
+                            }   
+                        }
+                        // Ler o ficheiro
+                        else if (wordsRead == 4) {
+                            //Última leitura ou se o tamanho for menor que a primeira iteração
+                            if (lastRead == 1 or fSize < iterationSize) {
+                                buffer[n-1]='\0';
+                                fprintf(scoreboard, "%s", buffer);
+                                printf("%s", buffer); 
+                                fclose(scoreboard);  
+                                break;
+                            } else {
+                                fSize -= iterationSize;
+                                if (fSize < iterationSize) {
+                                    iterationSize = fSize;
+                                    lastRead = 1;
+                                }       
+                                //printf("%d %ld\n", fSize, n);
+                                //printf("%d\n", iterationSize);
+                                //printf("%ld\n", strlen(buffer));    
+                                fprintf(scoreboard, "%s", buffer);
+                                printf("%s", buffer); 
+                            }
+                        }
+                        memset(buffer,0,256);
                     }
+                    break;
+                } else {
+                    n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+                    if (n == -1) exit(1);
                 }
-                // Ler nome do ficheiro
-                else if (wordsRead == 2) {
-                    if (strcmp(buffer, " ") != 0) {
-                        filename += buffer;
-                        continue;
-                    } else {
-                        wordsRead+=1;
-                    }
-                }
-                // Ler tamanho do ficheiro
-                else if (wordsRead == 3) {
-                    if (strcmp(buffer, " ") != 0) {
-                        sizeOfFile += buffer;
-                        continue;
-                    } else {
-                        wordsRead+=1;
-                        fSize = atoi(sizeOfFile.c_str());
-                        iterationSize = 100;
-                        scoreboard = fopen(filename.c_str(), "w");
-                    }   
-                }
-                // Ler o ficheiro
-                else if (wordsRead == 4) {
-                    //Última leitura ou se o tamanho for menor que a primeira iteração
-                    if (lastRead == 1 or fSize < iterationSize) {
-                        buffer[n-1]='\0';
-                        fprintf(scoreboard, "%s", buffer);
-                        printf("%s", buffer); 
-                        fclose(scoreboard);  
-                        break;
-                    } else {
-                        fSize -= iterationSize;
-                        if (fSize < iterationSize) {
-                            iterationSize = fSize;
-                            lastRead = 1;
-                        }       
-                        //printf("%d %ld\n", fSize, n);
-                        //printf("%d\n", iterationSize);
-                        //printf("%ld\n", strlen(buffer));    
-                        fprintf(scoreboard, "%s", buffer);
-                        printf("%s", buffer); 
-                    }
-                }
-                memset(buffer,0,256);
             }  
             close(fd);
         }
@@ -531,7 +546,7 @@ int main(int argc, char const *argv[]) {
                         }  
                         //printf("%d %ld\n", fSize, n);
                         //printf("%d\n", iterationSize);
-                        //printf("%ld\n", strlen(buffer));
+                        //printf("%ld\n", sizeof(buffer));
                         //printf("%d ", buffer[strlen(buffer)-1]);     
                         fprintf(scoreboard, "%s", buffer);
                         memset(buffer,0,256);
@@ -576,72 +591,87 @@ int main(int argc, char const *argv[]) {
             std::string sizeOfFile;
             std::string filename;
 
-            while((n = read(fd, buffer, iterationSize)) != 0) {
-                if (n == -1)  exit(1);
-                //Da primeira vez lê apenas "RST "
-                if (wordsRead == 0) { 
-                    wordsRead+=1;
-                }
-                //Ler palavra status
-                else if (wordsRead == 1) { 
-                    if(strcmp(buffer,"NOK\n") == 0) {
-                        //Ver condições de saida do loop
-                        printf("You haven't completed a game yet. To play start a game type: 'sg (yourID)'\n");
-                    }
-                    else if (strcmp(buffer,"FIN ") == 0 or strcmp(buffer,"ACT ") == 0) {
-                        //STATUS = FIN OU ACT
-                        wordsRead+=1;
-                        iterationSize = 1; 
-                    }
-                    else {
-                        exit(1);
-                    }
-                }   
-                // Ler nome do ficheiro
-                else if (wordsRead == 2) {
-                    if (strcmp(buffer, " ") != 0) {
-                        filename += buffer;
-                        continue;
-                    } else {
-                        wordsRead+=1;
-                    }
-                }
-                // Ler tamanho do ficheiro
-                else if (wordsRead == 3) {
-                    if (strcmp(buffer, " ") != 0) {
-                        sizeOfFile += buffer;
-                        continue;
-                    } else {
-                        wordsRead+=1;
-                        fSize = atoi(sizeOfFile.c_str());
-                        iterationSize = 100;
-                        state = fopen(filename.c_str(), "w");
-                    }   
-                }
-                // Ler o ficheiro
-                else if (wordsRead == 4) {
-                    //printf("%d", buffer[fSize]);
-                    //Última leitura
-                    if (lastRead == 1 or fSize < iterationSize) {
-                        //buffer[n-1]='\0';
-                        fprintf(state, "%s", buffer);
-                        printf("%s", buffer);
-                        fclose(state);  
-                        break;
-                    } else {
-                        fSize -= iterationSize;
-                        if (fSize < iterationSize) {
-                            iterationSize = fSize;
-                            lastRead = 1;
+            while(1) {
+                FD_ZERO(&readfds);
+                FD_SET(fd, &readfds);
+                tv.tv_sec = 2;
+                tv.tv_usec = 0;
+
+                int rv = select(fd+1, &readfds, NULL, NULL, &tv);
+
+                if (rv == 1) {
+                    while((n = read(fd, buffer, iterationSize)) != 0) {
+                        if (n == -1)  exit(1);
+                        //Da primeira vez lê apenas "RST "
+                        if (wordsRead == 0) { 
+                            wordsRead+=1;
                         }
-                        //printf("%d %ld\n", fSize, n);
-                        //printf("%d\n", iterationSize);
-                        //printf("%ld\n", strlen(buffer));
-                        fprintf(state, "%s", buffer);
-                        printf("%s", buffer);
-                    }
+                        //Ler palavra status
+                        else if (wordsRead == 1) { 
+                            if(strcmp(buffer,"NOK\n") == 0) {
+                                //Ver condições de saida do loop
+                                printf("You haven't completed a game yet nor do you have an active game. To play start a game type: 'sg (yourID)'\n");
+                            }
+                            else if (strcmp(buffer,"FIN ") == 0 or strcmp(buffer,"ACT ") == 0) {
+                                //STATUS = FIN OU ACT
+                                wordsRead+=1;
+                                iterationSize = 1; 
+                            }
+                            else {
+                                exit(1);
+                            }
+                        }   
+                        // Ler nome do ficheiro
+                        else if (wordsRead == 2) {
+                            if (strcmp(buffer, " ") != 0) {
+                                filename += buffer;
+                                continue;
+                            } else {
+                                wordsRead+=1;
+                            }
+                        }
+                        // Ler tamanho do ficheiro
+                        else if (wordsRead == 3) {
+                            if (strcmp(buffer, " ") != 0) {
+                                sizeOfFile += buffer;
+                                continue;
+                            } else {
+                                wordsRead+=1;
+                                fSize = atoi(sizeOfFile.c_str());
+                                iterationSize = 100;
+                                state = fopen(filename.c_str(), "w");
+                            }   
+                        }
+                        // Ler o ficheiro
+                        else if (wordsRead == 4) {
+                            //printf("%d", buffer[fSize]);
+                            //Última leitura
+                            if (lastRead == 1 or fSize < iterationSize) {
+                                //buffer[n-1]='\0';
+                                fprintf(state, "%s", buffer);
+                                printf("%s", buffer);
+                                fclose(state);  
+                                break;
+                            } else {
+                                fSize -= iterationSize;
+                                if (fSize < iterationSize) {
+                                    iterationSize = fSize;
+                                    lastRead = 1;
+                                }
+                                //printf("%d %ld\n", fSize, n);
+                                //printf("%d\n", iterationSize);
+                                //printf("%ld\n", strlen(buffer));
+                                fprintf(state, "%s", buffer);
+                                printf("%s", buffer);
+                            }
+                        }
+                        memset(buffer,0,256);
+                    } 
+                    break;
+                } else {
+                    n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+                    if (n == -1) exit(1);
                 }
-                memset(buffer,0,256);
             }  
             close(fd);
         }
@@ -698,6 +728,7 @@ int main(int argc, char const *argv[]) {
             else if (strcmp(parameters[1].c_str(), "OK") == 0) {
                 printf("You have successfully quit the game.\n");
                 gameActive = 0;
+                trial = 1;
             }
             else {
                 exit(1);
@@ -758,8 +789,10 @@ int main(int argc, char const *argv[]) {
             if(strcmp(parameters[1].c_str(), "ERR") == 0){
                 printf("Something went wrong. Please try again.\n");              }
             else if (strcmp(parameters[1].c_str(), "OK") == 0) {
-                printf("You have successfully quit the game.\n");
+                printf("You have successfully quit the game. Closing apllication now\n");
                 gameActive = 0;
+                trial = 1;
+                sleep(1);
                 freeaddrinfo(res);
                 close(fd);
                 exit(0);
@@ -781,6 +814,8 @@ int main(int argc, char const *argv[]) {
     //close(fd);
     //exit(0);
 }
+
+
 
 void readFlags(int argc, char const *argv[]) {
     int argn = 1;
