@@ -30,3 +30,6 @@ std::vector<std::string> sortStringVector(std::vector<std::string> v);
 
 /* Copy a string to a char pointer */
 void copyString(char * p, std::string s);
+
+/* Read until size n */
+ssize_t readn(int fd, void *buffer, size_t n);

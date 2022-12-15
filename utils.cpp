@@ -141,3 +141,27 @@ void copyString(char *p, std::string s) {
     }
     p[i] = '\0';
 }
+
+ssize_t readn(int fd, void *buffer, size_t n)
+{
+    ssize_t numRead;                    /* # of bytes fetched by last read() */
+    size_t totalRead;                     /* Total # of bytes read so far */
+    char *buf;
+
+    buf = (char*)buffer;                       /* No pointer arithmetic on "void *" */
+    for (totalRead = 0; totalRead < n; ) {
+        numRead = read(fd, buf, n - totalRead);
+
+        if (numRead == 0)               /* EOF */
+            return totalRead;             /* May be 0 if this is first read() */
+        if (numRead == -1) {
+            if (errno == EINTR)
+                continue;               /* Interrupted --> restart read() */
+            else
+                return -1;              /* Some other error */
+        }
+        totalRead += numRead;
+        buf += numRead;
+    }
+    return totalRead;                     /* Must be 'n' bytes if we get here */
+}
