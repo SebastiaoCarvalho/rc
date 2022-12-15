@@ -19,23 +19,30 @@
 #include <sstream>
 
 // TODO : 
+// Fix memory leaks (valgrind this b)
+// check if send funcs are using string or char *
+// comment stuff on other files, variables 
+// check after game stored
+// test state on finished game
+// maybe change state to last summary only return content
 // check error cases for makeplay and makeguess
 // check if if else order on plays and guesses is right
 // review global vars like fileName and wordG
-// implement verbose
-// maybe add verbose to error sending
-// Socket response
 // handle signals
 // handle errors
 // handle exits freeing stuff
-// fix state on finished
+// func remove scores 
 
 // DUVIDAS:
 // 1. Qual a função de score?
 // 2. Palavra pode ter digitos?
+// 3. Quando fazemos quit num jogo sem plays dá erro ou quit normal
+// 4. State num jogo sem guesses deve dar
+// 5. Devemos sempre dar exit quando ocorre erro ou há erros que devem ser tratados e continuar programa?
+// 6. Como dar free do vetor?
 
 struct sigaction act;
-int fd, newfd, errcode, seed;
+int fd, newfd, errcode, seed, lineNumber = 0;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
@@ -174,6 +181,9 @@ int main(int argc, char const *argv[])
                 
             }
             else {
+                if (verbose) {
+                    printf("Received invalid message from IP address: %s and port: %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                }
                 n=sendto(fd, "ERR\n", 128 ,0 , (struct sockaddr*)&addr, addrlen);
                 if (n==-1)/*error*/ exitServer(1);
             }
@@ -217,20 +227,30 @@ int main(int argc, char const *argv[])
                 message = strip(message);
                 std::vector<std::string> tokens = stringSplit(message, ' ');
                 if (strncmp(buffer, "GSB", 3) == 0) {
+                    if (verbose) {
+                        printf("Received GSB from IP address: %s and port: %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    }
                     sendScoreBoard(newfd);
                 }
                 else if (strncmp(buffer, "GHL", 3) == 0) {
                     std::string playerID = tokens[1];
-                    printf("%s\n", playerID.c_str());
+                    if (verbose) {
+                        printf("Received GHL with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    }                    
                     sendHint(newfd, playerID);
                 }
                 else if (strncmp(buffer, "STA", 3) == 0) {
                     std::string playerID = tokens[1];
-                    printf("%s\n", playerID.c_str());
+                    if (verbose) {
+                        printf("Received STA with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    }
                     sendState(newfd, playerID);
                 }
                 else {
                     message = "ERR\n";
+                    if (verbose) {
+                        printf("Received invalid message from IP address: %s and port: %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    }
                     int nw = 0;
                     int i = 0;
                     while(n>0) {
@@ -250,17 +270,20 @@ int main(int argc, char const *argv[])
     }
 }
 
+/* Safely exit the server, freeing memory used */
 void exitServer(int exitCode) {
     freeaddrinfo(res);
     close(fd);
     exit(exitCode);
 }
 
+/* Send UDP message */
 void sendUDP(int fd, std::string message, struct sockaddr_in addr, size_t addrlen) {
     int n = sendto(fd, message.c_str(), message.length() ,0 , (struct sockaddr*)&addr, addrlen);
     if (n==-1)/*error*/ exitServer(1);
 }
 
+/* Send TCP message */
 void sendTCP(int fd, std::string message) {
     int nw, i = 0;
     size_t n = message.length();
@@ -271,11 +294,13 @@ void sendTCP(int fd, std::string message) {
     }
 }
 
+/* Handle Ctrl C Event (SIGINT) */
 void handleCtrlC(int s){
     printf("Caught exitting signal.\n Exiting...\n");
     exitServer(s);
 }
 
+/* Read flags from command line */
 void readFlags(int argc, char const *argv[]) {
     if (argc == 1) {
         printf("No file name specified. Using default file name: words.txt\n");
@@ -306,6 +331,7 @@ void readFlags(int argc, char const *argv[]) {
     }
 }
 
+/* Get random seed for random word reading */
 void getNewSeed() {
     if ( ! verifyExistence("seed.txt") ) {
         std::ofstream file("seed.txt");
@@ -325,6 +351,7 @@ void getNewSeed() {
     file2.close();
 }
 
+/* Read random word from file */
 void readWord(std::string fileName, std::string * word) {
     std::ifstream file(fileName);
     std::string line;
@@ -339,6 +366,22 @@ void readWord(std::string fileName, std::string * word) {
     file.close();
 }
 
+/* Read sequential word from file */
+void readSequentialWord(std::string fileName, std::string * word) {
+    std::ifstream file(fileName);
+    std::string line;
+    std::vector<std::string> lines;
+    while (std::getline(file, line)) {
+        lines.push_back(line);
+    }
+    
+    *word = stringSplit(lines[lineNumber], ' ')[0];
+    std::cout << *word << std::endl;
+    file.close();
+    lineNumber = (lineNumber + 1) % lines.size();
+}
+
+/* Create Game File for playerID with word */
 void createGameFile(std::string playerID, std::string word) {
     std::ofstream file;
     file.open("GAMES/GAME_" + playerID);
@@ -346,6 +389,7 @@ void createGameFile(std::string playerID, std::string word) {
     file.close();
 }
 
+/* Boot the server*/
 void bootServer() {
     std::vector<std::string> files = listDirectory("GAMES");
     size_t size = files.size();
@@ -355,12 +399,25 @@ void bootServer() {
             std::cout << "Error deleting file " << files[i] << std::endl;
         }
     }
+    files.clear();
+    std::vector<std::string>().swap(files); // free memory
+    files =  listDirectory("SCORES");
+    for (size_t i = 0; i < files.size(); i++) {
+        int res = deleteFile("SCORES/" + files[i]);
+        if (res == 0) {
+            std::cout << "Error deleting file " << files[i] << std::endl;
+        }
+    }
+    files.clear();
+    std::vector<std::string>().swap(files); // free memory
 }
 
+/* Check if playerID has game and it is being played (has moves) */
 int hasGame(std::string playerId) {
     return verifyExistence("GAMES/GAME_" + playerId) && getLineNumber("GAMES/GAME_" + playerId) > 1;
 }
 
+/* Start a game for playerID*/
 void startGame(std::string playerID) {
     std::string word;
     std::string status;
@@ -372,7 +429,7 @@ void startGame(std::string playerID) {
     else {
         status = "OK";
         if (! verifyExistence("GAMES/GAME_" + playerID)) { // get new word from word file
-            readWord(fileName, &word); 
+            readSequentialWord(fileName, &word); 
             createGameFile(playerID, word);
         }
         else { // get word from game file    
@@ -383,9 +440,11 @@ void startGame(std::string playerID) {
         std::string maxErrors = std::to_string(errorsN);
         message = "RSG " + status + " " + letterNumber + " " + maxErrors + "\n";
     }
+    if (verbose) printf("Replying with : %s", message.c_str());
     sendUDP(fd, message.c_str(), addr, addrlen); // TODO : check if sends using n = 
 }
 
+/* Check if last line is the same as the new play (repeated message case) */
 int isRepeated(std::string playerID, std::string play) {
     std::string line = getLastLine("GAMES/GAME_" + playerID);
     printf("line: %s\n", line.c_str());
@@ -393,11 +452,13 @@ int isRepeated(std::string playerID, std::string play) {
     return play == line + "\n";
 }
 
+/* Save play in game file */
 void savePlay(std::string playerID, std::string status, std::string hit, std::string play, int missing) {
     std::string filename = "GAMES/GAME_" + playerID;
     appendFile(filename, status + " " + hit + " " + play + " " + std::to_string(missing) + "\n");
 }
 
+/* Get how many errors playerID made on his game */
 int getErrorsMade(std::string playerID) {
     std::ifstream file("GAMES/GAME_" + playerID);
     std::string line;
@@ -412,6 +473,7 @@ int getErrorsMade(std::string playerID) {
     return errors;
 }
 
+/* Get how many letters are missing from playerId's game */
 int getMissingNumber(std::string playerId) {
     if (! hasGame(playerId)) {
         return -1;
@@ -421,6 +483,7 @@ int getMissingNumber(std::string playerId) {
     return atoi(missing.c_str());
 }
 
+/* Store Game on his directory */
 void storeGame(std::string playerID, std::string status) {
     time_t now = time(0);
     tm *ltm = localtime(&now);
@@ -433,15 +496,25 @@ void storeGame(std::string playerID, std::string status) {
     }
 }
 
+int scoreCalc(int errors, int errorsMade, int trials) {
+    int score;
+    if (trials < 6)
+        score = 100 - trials * 15;
+    else
+        score = 100 - trials * 10;
+    return score > 0 ? score : 0;
+}
+
+/* Save score file for playerID's game */
 void saveScore(std::string playerID) {
     std::string filename = "GAMES/GAME_" + playerID;
-    std::string word = stringSplit(getLine(filename, 1), ' ')[0];
+    std::string word = sortStringVector(stringSplit(getLine(filename, 1), ' '))[0];
     int errors = maxErrors(word);
     int trials = getLineNumber(filename) - 1;
     int errorsMade = getErrorsMade(playerID);
     int succ = trials - errorsMade;
     //int score = (errors - errorsMade) * 100 / errors;
-    int score = (int) ((errors/trials) * 11);
+    int score = scoreCalc(errors, errorsMade, trials);
     printf("Score: %d\n", score);
     std::string scoreS = std::to_string(score);
     while (scoreS.length() < 3) {
@@ -455,9 +528,10 @@ void saveScore(std::string playerID) {
     file << scoreS << " " << playerID << " " << word << " " << succ << " " << trials << std::endl;
 }
 
+/* Exit playerID's game */
 void quitGame(std::string playerID) {
     std::string status;
-    if (hasGame(playerID)) {
+    if (verifyExistence("GAMES/GAME_" + playerID)) {
         status = "OK";
         storeGame(playerID, "Q");
     }
@@ -465,16 +539,18 @@ void quitGame(std::string playerID) {
         status = "ERR";
     }
     std::string message = "RQT " + status + "\n";
+    if (verbose) printf("Replying with : %s", message.c_str());
     sendUDP(fd, message.c_str(), addr, addrlen);
 }
 
+/* Check if trial number is valid for playerID's game */
 int isTrialValid(std::string playerID, int trial) {
     int line_number = getLineNumber("GAMES/GAME_" + playerID);
     printf("line_number: %d\n", line_number);
     return trial == line_number;
 }
 
-
+/* Checks if play is duplicate for playerID's game */
 int isDup(std::string playerID, std::string play) {
     std::ifstream file("GAMES/GAME_" + playerID);
     std::string line;
@@ -488,12 +564,14 @@ int isDup(std::string playerID, std::string play) {
     return 0;
 }
 
+/* Get word from filename game file */
 std::string getWord(std::string fileName) {
     std::string line = getLine(fileName, 1);
     std::vector<std::string> words = stringSplit(line, ' ');
     return words[0];
 }
 
+/* Get the top 10 games */
 std::string getScoreBoard() {
     std::vector<std::string> files = listDirectory("SCORES");
     if (files.size() == 0) {
@@ -506,6 +584,7 @@ std::string getScoreBoard() {
     scoreboard += "SCORE PLAYER     WORD                      GOOD TRIALS  TOTAL TRIALS\n\n";
     ssize_t size = files.size();
     for (ssize_t i = size - 1; i >= 0 && i >= size - 10; i--) {
+        printf("File: %s, i: %d", files[i].c_str(), i);
         std::string line = getLine("SCORES/" + files[i], 1);
         std::vector<std::string> words = stringSplit(line, ' ');
         std::string word = words[2];
@@ -518,21 +597,24 @@ std::string getScoreBoard() {
     return scoreboard;
 }
 
+/* Send ScoreBoard to the player application */
 void sendScoreBoard(int newfd) {
     std::string scoreboard = getScoreBoard();
     std::string message;
     if (scoreboard == "") {
-        printf("asdsadas");
         message = "RSB EMPTY\n";
     }
     else {
-        printf("eee");
+        printf("Scoreboard: %s", scoreboard.c_str());
         message = "RSB OK scoreboard.txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
     }
-    printf("Sending scoreboard: %s", message.c_str());
+    if (verbose) {
+        printf("Replying with scoreboard\n");
+    }
     sendTCP(newfd, message.c_str());
 }
 
+/* Read image from filename and return content */
 std::string readImage(std::string filename) {
     // std::ifstream file(filename, std::ios::binary);
     // std::ostringstream ss;
@@ -542,41 +624,102 @@ std::string readImage(std::string filename) {
     }
     // ss << file.rdbuf();
     // image = ss.str();
-    std::ifstream file(filename, std::ios::binary);
+    std::ifstream file(filename);
     std::string line;
     while (std::getline(file, line)) {
+        //printf("Line: %s", line.c_str());
         image += line + "\n";
     }
+    // printf("Image size: %ld", strlen(image.c_str()));
     return image;
 }
 
+void readImage2(std::string filename, char ** content, size_t * size) {
+    FILE * file = fopen(filename.c_str(), "r");
+    unsigned char character;
+    std::vector<unsigned char> image;
+    while (!feof(file)) {
+       character = getc(file);
+       image.push_back(character);
+    }
+    printf("read\n");
+    fclose(file);
+    *size = image.size();
+    *content = new char[*size + 1];
+    printf("created\n");
+    for (int i = 0; i < image.size(); i++) {
+        printf("i: %d, image[i]: %d\n", i, image[i]);
+        (*content)[i] = image[i];
+    }
+    printf("copied\n");
+    (*content)[*size] = '\0';
+    printf("Content %s\n", content);
+}
+
+/* Send hint image content from playerID's game to player application */
 void sendHint(int newfd, std::string playerID) {
     std::string message;
+    size_t size;
+    char * content = NULL;
+    printf("a\n");
     if (! verifyExistence("GAMES/GAME_" + playerID)) {
         message = "RHL NOK\n";
     }
     else {
         std::string word = stringSplit(getLine("GAMES/GAME_" + playerID, 1), ' ')[0];
-        std::string image = readImage("images/" + word + ".jpg");
+        std::string image = readImage("images/witch.jpg");
         if (image == "") {
             message = "RHL NOK\n";
         }
         else {
-            message = "RHL OK hint.jpg " + std::to_string(image.size()) + " " + image + "\n";
+            /* char *cstr = new char[image.size() + 1];
+            memset(cstr, 0, image.size() + 1);
+            printf("cstr size %ld | %ld\n", sizeof(char *) / sizeof(cstr[0]), image.size());
+            copyString(cstr, image);
+            content = cstr; */
+            readImage2("images/witch.jpg", &content, &size);
+            if (content == NULL) {
+                printf("Content is null\n");
+            }
+            else {
+                printf("Content is not null\n");
+                //store content in file
+
+            }
+            message = "RHL OK hint.txt " + std::to_string(size) + " ";
             // store message in file
-            std::ofstream file("hint.jpg");
+            /* std::ofstream file("hint.jpg");
             file << image;
-            file.close();
+            file.close(); */
         }
     }
+    if (verbose) {
+        printf("Replying with hint\n");
+    }
+    printf("Message: %s", message.c_str());
     sendTCP(newfd, message.c_str());
+    if (content != NULL) {
+        FILE * file = fopen("bhint.jpg", "w");
+        int nw, n = size;
+        while(n>0) {
+            if ((nw=write(newfd, content,n))<=0) exitServer(1);
+            fwrite(content, sizeof(char), nw, file);
+            n -= nw;
+            content += nw;
+        }
+        fclose(file);
+        delete [] content;
+    }
 }
 
+/* Get game summary from file filename */
 std::string getSummary(std::string filename) {
     int trials = getLineNumber(filename) - 1;
     std::string word = getWord(filename);
     std::string game = repeat("-", word.length());
-    std::string summary = std::to_string(trials) + " transactions found:\n";
+    std::string summary;
+    if (trials > 0) summary = std::to_string(trials) + " transactions found:\n";
+    else summary = "No transactions found\n";
     for (int i = 1; i <= trials; i++) {
         std::string line = getLine(filename, i + 1);
         printf("line: %s\n", line.c_str());
@@ -598,24 +741,27 @@ std::string getSummary(std::string filename) {
     return summary;
 }
 
+/* Get summary from last game played by playerID */
 std::string getLastGameSummary(std::string playerID) {
-    std::vector<std::string> files = listDirectory("GAMES/" + playerID);
+    std::vector<std::string> files = sortStringVector(listDirectory("GAMES/" + playerID));
     ssize_t size = files.size();
     std::string filename = "GAMES/" + playerID + "/" + files[size - 1];
     std::string file_content = getSummary(filename);
-    std::string res = files[size - 1] + " " + std::to_string(file_content.size()) + " " 
+    std::string res = "STATE_" + playerID + ".txt " + std::to_string(file_content.size()) + " " 
     + "Finished game found for player " + playerID + "\n" + file_content;
+    printf("res: %s", res.c_str());
     return res;
 }
 
+/* Send state from playerID's games to player application */
 void sendState(int newfd, std::string playerID) {
     std::string message, file_content = "";
     if (verifyExistence("GAMES/GAME_" + playerID)) {
         message = "RST ACT ";
         file_content = "Active game found for player " + playerID + "\n" + getSummary("GAMES/GAME_" + playerID);
-        message += "GAME_" + playerID + " " + std::to_string(file_content.size()) + " " + file_content + "\n";
+        message += "STATE_" + playerID + ".txt " + std::to_string(file_content.size()) + " " + file_content + "\n";
     }
-    else if (listDirectory("GAMES/" + playerID).size() != 0) {
+    else if (listDirectory("GAMES/" + playerID).size() != 0 && playerID.length() == 6) { // find bug here
         file_content = getLastGameSummary(playerID);
         message = "RST FIN ";
         message += file_content + "\n";
@@ -623,10 +769,13 @@ void sendState(int newfd, std::string playerID) {
     else {
         message = "RST NOK\n";
     }
-    printf("%s", message.c_str());
+    if (verbose) {
+        printf("Replying with state\n");
+    }
     sendTCP(newfd, message.c_str());
 }
 
+/* Try a letter play for playerID's game */
 void makePlay(std::string playerID, char letter, int trial) {
     std::string status, message, word;
     std::vector<int> pos;
@@ -682,10 +831,13 @@ void makePlay(std::string playerID, char letter, int trial) {
     else if (status == "OVR") {
         storeGame(playerID, "F");
     }
-    printf("%s", message.c_str());
+    if (verbose) {
+        printf("Replying with: %s\n", message.c_str());
+    }    
     sendUDP(fd,message.c_str(), addr, addrlen);
 }
 
+/* Make a word guess for playerID's game */
 void makeGuess(std::string playerID, std::string guess, int trial) {
     std::string status, word, message;
     int maxErrorsN, errorsMade, missing;
@@ -721,6 +873,9 @@ void makeGuess(std::string playerID, std::string guess, int trial) {
     }
     else if (status == "OVR") {
         storeGame(playerID, "F");
+    }
+    if (verbose) {
+        printf("Replying with: %s\n", message.c_str());
     }
     sendUDP(fd, message.c_str(), addr, addrlen);
 }

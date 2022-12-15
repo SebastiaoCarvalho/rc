@@ -7,7 +7,7 @@
 #include <sstream>
 #include <cstdlib>
 
-// get all positions of a letter in a string
+/* Get all positions of a letter in a string */
 std::vector<int> getPos(std::string str, char letter) {
     ssize_t len = str.length();
     std::vector<int> pos;
@@ -19,7 +19,7 @@ std::vector<int> getPos(std::string str, char letter) {
     return pos;
 }
 
-// get the maximum number of errors allowed for a word
+/* Get the maximum number of errors allowed for a word */
 int maxErrors (std::string s) {
     size_t len = s.length();
     if (len <= 6) {
@@ -33,7 +33,7 @@ int maxErrors (std::string s) {
     }
 }
 
-// split a string into a vector of strings using a delimiter
+/* Split a string into a vector of strings using a delimiter */
 std::vector<std::string> stringSplit(std::string s, char delimiter) {
     std::vector<std::string> tokens;
     std::string token;
@@ -45,12 +45,13 @@ std::vector<std::string> stringSplit(std::string s, char delimiter) {
     return tokens;
 }
 
-// get a random number between min and max inclusive
+/* Get a random number between min and max inclusive */
 int random(int seed, int min, int max) {
     srand(seed);
     return min + (rand() % (max - min + 1));
 }
 
+/* Get a string resulting of repeating s n times*/
 std::string repeat(std::string s, int n) {
   std::string repeat;
 
@@ -60,7 +61,7 @@ std::string repeat(std::string s, int n) {
   return repeat;
 }
 
-// remove \n from strings
+/* Remove \n from strings*/
 std::string strip(std::string s) {
   std::string stripped;
 
@@ -71,6 +72,7 @@ std::string strip(std::string s) {
   return stripped;
 }
 
+/* Return date format used for file naming */
 std::string getDateFormatted(tm *ltm) {
     std::string year = std::to_string(1900 + ltm->tm_year);
     std::string month = std::to_string(1 + ltm->tm_mon);
@@ -96,6 +98,7 @@ std::string getDateFormatted(tm *ltm) {
     return year + month + day + "_" + hour + min + sec;
 }
 
+/* return 1 if s is a number, 0 otherwise*/
 int isNumber(std::string s) {
     for (size_t i = 0; i < s.length(); i++) {
         if (!isdigit(s[i])) {
@@ -103,4 +106,38 @@ int isNumber(std::string s) {
         }
     }
     return 1;
+}
+
+/* Quicksort vector of strings */
+std::vector<std::string> sortStringVector(std::vector<std::string> v) {
+    if (v.size() <= 1) {
+        return v;
+    }
+    std::vector<std::string> left;
+    std::vector<std::string> right;
+    std::vector<std::string> sorted;
+    std::string pivot = v[v.size() / 2];
+    v.erase(v.begin() + v.size() / 2);
+    for (size_t i = 0; i < v.size(); i++) {
+        if (v[i] < pivot) {
+            left.push_back(v[i]);
+        }
+        else {
+            right.push_back(v[i]);
+        }
+    }
+    left = sortStringVector(left);
+    right = sortStringVector(right);
+    sorted.insert(sorted.end(), left.begin(), left.end());
+    sorted.push_back(pivot);
+    sorted.insert(sorted.end(), right.begin(), right.end());
+    return sorted;
+}
+
+void copyString(char *p, std::string s) {
+    size_t i;
+    for (i = 0; i < s.length(); i++) {
+        p[i] = s[i];
+    }
+    p[i] = '\0';
 }

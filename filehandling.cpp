@@ -7,16 +7,16 @@
 #include <sys/stat.h>
 #include "filehandling.h"
 
-// delete file given his name
+/* Delete file given his name */
 int deleteFile(std::string filename) {
     return remove(filename.c_str()) == 0;
 }
 
-// return name of all files in directory
+/* Return name of all files in directory */
 std::vector<std::string> listDirectory(std::string dirName) {
     DIR *dir;
     struct dirent *ent;
-    std::vector<std::string> files;
+    std::vector<std::string> files ;
     if ((dir = opendir (dirName.c_str())) != NULL) {
         /* print all the files and directories within directory */
         while ((ent = readdir (dir)) != NULL) {
@@ -28,7 +28,7 @@ std::vector<std::string> listDirectory(std::string dirName) {
     return files;
 }
 
-// count number of lines in file
+/* Count number of lines in file */
 int getLineNumber(std::string fileName) {
     std::ifstream file(fileName);
     std::string line;
@@ -39,6 +39,7 @@ int getLineNumber(std::string fileName) {
     return line_number;
 }
 
+/* Check if file with name filename exists */
 int verifyExistence(std::string filename) {
     std::ifstream file(filename);
     if (file.good()) {
@@ -51,6 +52,7 @@ int verifyExistence(std::string filename) {
     }
 }
 
+/* Get line number lineNumber from file filename */
 std::string getLine(std::string filename, int lineNumber) {
     std::ifstream file(filename);
     std::string line;
@@ -64,10 +66,13 @@ std::string getLine(std::string filename, int lineNumber) {
     return NULL;
 }
 
+
+/* Get the last line of file filename */
 std::string getLastLine(std::string filename) {
     return getLine(filename, getLineNumber(filename));
 }
 
+/* Get the full content of file filename */
 std::string getContent(std::string filename) {
     std::string file_content = "";
     std::ifstream file(filename);
@@ -78,6 +83,7 @@ std::string getContent(std::string filename) {
     return file_content;
 }
 
+/* Append text to the end of file filename */
 void appendFile(std::string filename, std::string text) {
     std::ofstream file;
     file.open(filename, std::ios::app);
@@ -85,6 +91,7 @@ void appendFile(std::string filename, std::string text) {
     file.close();
 }
 
+/* Move file filename from old directory to newDir and change his name to newName */
 int moveFile(std::string filename, std::string newDir, std::string newName) {
     if (! verifyExistence(newDir)) {
         mkdir(newDir.c_str(), 0777);

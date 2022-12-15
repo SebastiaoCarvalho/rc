@@ -72,10 +72,10 @@ int main(int argc, char const *argv[]) {
             std::string id;
             std::cin >> id;
 
-            if(id[0] == '1' or id.length() != 6) {
-                printf("Invalid playerID. Please make sure that your playerID starts with '0' (if your ID only has 5 numbers) and has six digits.\n");
+            /* if(id[0] == '1' or strlen(id) != 6) {
+                printf("Invalid playerID. Please make sure that your playerID starts with '0' and has six digits.\n");
                 continue;
-            }
+            } */
         
             // Save playerID 
             playerID = id;
