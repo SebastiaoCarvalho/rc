@@ -18,7 +18,6 @@
 #include "utils.h"
 
 int fd,errcode;
-ssize_t n;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
@@ -27,6 +26,8 @@ std::string port="58011";     //O default devia ser 58002
 
 
 //  LIMITAR NUMERO DE PORTS
+// vale a pena aumentar iterationSize?
+// auto-avaliação?
 // Podem jogar dois player diferentes IDs na mesma sessão?
 // Abrir udp logo no inicio?
 // Cena do state de novo. Se não há nenhum jogo a decorrer como posso considerar o current gamme como terminado
@@ -36,7 +37,8 @@ std::string port="58011";     //O default devia ser 58002
 int main(int argc, char const *argv[]) {
     
     void readFlags(int argc, char const *argv[]);
-    std::string getWordFromBuffer(char* buffer, std::string filename);
+    void sendTCP(int fd, std::string message);
+    ssize_t readMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend);
 
     FILE *scoreboard;
     FILE *state;
@@ -45,7 +47,7 @@ int main(int argc, char const *argv[]) {
     std::string currentWord;
     int gameActive = 0;
     int trial = 1; 
-
+    ssize_t n;
     // Sockets variables
     fd_set readfds;  
     struct timeval tv;
@@ -70,16 +72,17 @@ int main(int argc, char const *argv[]) {
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_DGRAM; //UDP socket
 
+            // Set socket to non-blocking
+            fcntl(fd, F_SETFL, O_NONBLOCK);
+            
+
             // Read playerID 
             std::string id;
             std::cin >> id;
-        
-            // Save playerID 
-            playerID = id;
 
             // Create message 
             std::string messageToSend;
-            messageToSend = "SNG " + playerID + "\n";
+            messageToSend = "SNG " + id + "\n";
 
             // Send message
             n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
@@ -88,31 +91,24 @@ int main(int argc, char const *argv[]) {
             // Empty buffer 
             memset(buffer, 0 , sizeof(buffer));
 
-            while(1) {
-                FD_ZERO(&readfds);
-                FD_SET(fd, &readfds);
-                tv.tv_sec = 2;
-                tv.tv_usec = 0;
+            n = readMessageUdp(readfds, tv, fd, n, addr, res, buffer, messageToSend);
 
-                int rv = select(fd+1, &readfds, NULL, NULL, &tv);
-
-                if (rv == 1) {
-                    /* Receive status from GS to check if it is a hit, miss, e.t.c */
-                    n = recvfrom(fd, buffer, 256, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
-                    if (n == -1) exit(1);
-                    break;
-                } else {
-                    n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
-                    if (n == -1) exit(1);
-                }
-            }
-
+            //printf("%s", buffer);
+            //printf("%ld", n);
             // Remove \n from last position
             buffer[n-1] = '\0';
+
+            //printf("%s", buffer);
 
             // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
+            for (std::string s : parameters) {
+                std::cout << s << std::endl;
+            }
+
+            //printf("%ld", parameters.size());
+            /*
             // If game is good to go, create word, else print error message
             if (strcmp(parameters[1].c_str(), "OK") == 0) {
                 // Create empty  word
@@ -120,16 +116,18 @@ int main(int argc, char const *argv[]) {
                 wordSpaces[wordSpaces.length()-1] = '\0';
                 // Save word
                 currentWord = wordSpaces;
-                
+                    
                 printf("New game started. Guess a %s letter word: %s. You can miss up to %s times.\n", parameters[2].c_str(), wordSpaces.c_str(), parameters[3].c_str());
                 gameActive = 1;
+                playerID = id;
                 close(fd);
             }
             else if (strcmp(parameters[1].c_str(), "NOK") == 0) {
                 printf("You can't start a new game. You have to wait for the current game to finish.\n");
                 close(fd);
             }
-            else if (strcmp(parameters[1].c_str(), "ERR") == 0) {
+            */
+            if (strcmp(parameters[0].c_str(), "ERR") == 0) {
                 printf("The player ID you provided is wrong. Please make sure your player ID is 6 digits long.\n");
                 close(fd);
             }
@@ -143,6 +141,8 @@ int main(int argc, char const *argv[]) {
 
             // Set socket to non-blocking
             fcntl(fd, F_SETFL, O_NONBLOCK);
+            
+            ssize_t n;
 
             memset(&hints,0,sizeof hints);
             hints.ai_family=AF_INET; //IPv4
@@ -355,8 +355,9 @@ int main(int argc, char const *argv[]) {
             n = connect(fd, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
 
-            n = write(fd, messageToSend.c_str(), messageToSend.length());
-            if (n == -1) /*error*/ exit(1);
+            // Send TCP message
+            sendTCP(fd, messageToSend);
+    
             
             /* Empty buffer */
             memset(buffer, 0 , sizeof(buffer));
@@ -459,7 +460,7 @@ int main(int argc, char const *argv[]) {
             hints.ai_family=AF_INET; //IPv4
             hints.ai_socktype=SOCK_STREAM; //UDP socket
             
-            if(playerID.length() == 0) {
+            if(gameActive == 0) {
                 printf("You have to start a game first.\n");
                 continue;
             }
@@ -479,8 +480,8 @@ int main(int argc, char const *argv[]) {
             n = connect(fd, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
 
-            n = write(fd, messageToSend.c_str(), messageToSend.length());
-            if (n == -1) /*error*/ exit(1);
+            // Send TCP message
+            sendTCP(fd, messageToSend);
             
             // Empty buffer 
             memset(buffer, 0 , sizeof(buffer));
@@ -530,8 +531,7 @@ int main(int argc, char const *argv[]) {
                     } else {
                         wordsRead+=1;
                         fSize = atoi(sizeOfFile.c_str());
-                        //printf("%d", fSize);
-                        iterationSize = 1;
+                        //iterationSize = 1;
                         scoreboard = fopen(filename.c_str(), "w");
                     }   
                 }
@@ -541,7 +541,6 @@ int main(int argc, char const *argv[]) {
                     if (lastRead == 1 or fSize < iterationSize) {
                         buffer[n]='\0';
                         fwrite(buffer, sizeof(char), n, scoreboard);
-                        //printf("%s", buffer);   
                         fclose(scoreboard);  
                         break;
                     } else {
@@ -549,12 +548,7 @@ int main(int argc, char const *argv[]) {
                         if (fSize <= iterationSize) {
                             iterationSize = fSize;
                             lastRead = 1;
-                        }  
-                        //printf("%d %ld\n", fSize, n);
-                        //printf("%d\n", iterationSize); 
-                        //printf("%ld\n", sizeof(buffer));
-                        //printf("%d ", buffer[strlen(buffer)-1]);  
-                        //printf("%s", buffer);   
+                        }    
                         fwrite(buffer, sizeof(char), n, scoreboard);
                         memset(buffer,0,sizeof(buffer));
                     }
@@ -584,8 +578,9 @@ int main(int argc, char const *argv[]) {
 
             n = connect(fd, res->ai_addr, res->ai_addrlen);
             if (n == -1) /*error*/ exit(1);
-            n = write(fd, messageToSend.c_str(), messageToSend.length());
-            if (n == -1) /*error*/ exit(1);
+            
+            // Send TCP message
+            sendTCP(fd, messageToSend);
             
             /* Empty buffer */
             memset(buffer, 0 , sizeof(buffer));
@@ -799,7 +794,7 @@ int main(int argc, char const *argv[]) {
                 printf("You have successfully quit the game. Closing apllication now...\n");
                 gameActive = 0;
                 trial = 1;
-                sleep(1);
+                sleep(0.3);
                 freeaddrinfo(res);
                 close(fd);
                 exit(0);
@@ -812,7 +807,7 @@ int main(int argc, char const *argv[]) {
         else {
             printf("Invalid command, please try again.\n");
             // Read useless information from line (if there are more than two arguments) and clear buffer
-            fgets(buffer, 256, stdin);
+            fgets(buffer, sizeof(buffer), stdin);
             memset(buffer, 0 , sizeof(buffer));
             continue;
         }
@@ -823,7 +818,7 @@ int main(int argc, char const *argv[]) {
 }
 
 
-
+/* Read input optional flags */
 void readFlags(int argc, char const *argv[]) {
     int argn = 1;
     while (argn < argc) {
@@ -848,12 +843,38 @@ void readFlags(int argc, char const *argv[]) {
     }
 }
 
-std::string getWordFromBuffer(char* buffer, std::string filename){
-    for (int j = 0; j < n; j++) {
-        if (buffer[j] == ' ') {
-            filename = std::string(buffer).substr(0, j);
+/* Send TCP message */
+void sendTCP(int fd, std::string message) {
+    int nw, i = 0;
+    size_t n = message.length();
+    while(n>0) {
+        if ((nw=write(fd, message.substr(i, n).c_str(),n))<=0) {
+            exit(1);
+        }
+        n -= nw;
+        i += nw;
+    }
+}
+
+
+ssize_t readMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend) {
+    while(1) {
+        FD_ZERO(&readfds);
+        FD_SET(fd, &readfds);
+        tv.tv_sec = 2;
+        tv.tv_usec = 0;
+
+        int rv = select(fd+1, &readfds, NULL, NULL, &tv);
+
+        if (rv == 1) {
+            // Receive status from GS to check if it is a hit, miss, e.t.c 
+            n = recvfrom(fd, buffer, 256, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+            if (n == -1) exit(1);
             break;
+        } else {
+            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+            if (n == -1) exit(1);
         }
     }
-    return filename;
+    return n;
 }
