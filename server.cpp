@@ -667,7 +667,7 @@ void sendHint(int newfd, std::string playerID) {
     }
     else {
         std::string word = stringSplit(getLine("GAMES/GAME_" + playerID, 1), ' ')[0];
-        std::string image = readImage("images/witch.jpg");
+        std::string image = readImage("images/transfer.jpg");
         if (image == "") {
             message = "RHL NOK\n";
         }
@@ -677,7 +677,7 @@ void sendHint(int newfd, std::string playerID) {
             printf("cstr size %ld | %ld\n", sizeof(char *) / sizeof(cstr[0]), image.size());
             copyString(cstr, image);
             content = cstr; */
-            readImage2("images/witch.jpg", &content, &size);
+            readImage2("images/transfer.jpg", &content, &size);
             if (content == NULL) {
                 printf("Content is null\n");
             }
