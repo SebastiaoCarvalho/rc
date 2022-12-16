@@ -22,8 +22,8 @@ ssize_t n;
 socklen_t addrlen;
 struct addrinfo hints,*res;
 struct sockaddr_in addr;
-std::string machineIP = "tejo.tecnico.ulisboa.pt"; //O default é o IP da máquina -> DESKTOP-8NS8GE1 ou 127.0.0.1
-std::string port="58011";     //O default devia ser 58002
+std::string machineIP = "127.0.0.1"; //O default é o IP da máquina -> DESKTOP-8NS8GE1 ou 127.0.0.1
+std::string port="58002";     //O default devia ser 58002
 
 
 //  LIMITAR NUMERO DE PORTS

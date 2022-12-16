@@ -24,6 +24,7 @@ std::vector<std::string> listDirectory(std::string dirName) {
                 files.push_back(ent->d_name);
             }
         }
+        closedir (dir);
     }
     return files;
 }
