@@ -7,7 +7,7 @@
 #include <sstream>
 #include <cstdlib>
 
-/* Get all positions of a letter in a string */
+/* Get all positions of a letter in a string, returning a vector with those same positions */
 std::vector<int> getPos(std::string str, char letter) {
     ssize_t len = str.length();
     std::vector<int> pos;
@@ -61,7 +61,7 @@ std::string repeat(std::string s, int n) {
   return repeat;
 }
 
-/* Remove \n from strings*/
+/* Remove \n from strings, returning stripped string*/
 std::string strip(std::string s) {
   std::string stripped;
 
@@ -108,7 +108,7 @@ int isNumber(std::string s) {
     return 1;
 }
 
-/* Quicksort vector of strings */
+/* Quicksort vector of strings, returning the sorted vector */
 std::vector<std::string> sortStringVector(std::vector<std::string> v) {
     if (v.size() <= 1) {
         return v;
@@ -134,14 +134,8 @@ std::vector<std::string> sortStringVector(std::vector<std::string> v) {
     return sorted;
 }
 
-void copyString(char *p, std::string s) {
-    size_t i;
-    for (i = 0; i < s.length(); i++) {
-        p[i] = s[i];
-    }
-    p[i] = '\0';
-}
-
+/* Read from file with file descriptor fd until error or n bytes are read. 
+Return number of bytes read or -1 on error.*/
 ssize_t readn(int fd, void *buffer, size_t n)
 {
     ssize_t numRead;

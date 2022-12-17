@@ -1,4 +1,3 @@
-// fix imports
 #include "common.h"
 
 /* Safely exit the server, freeing memory used */

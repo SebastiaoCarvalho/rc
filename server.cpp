@@ -22,18 +22,14 @@
 #include <sstream>
 
 // TODO : 
+// Test server on sigma
 // Start game tem argumento readArgs que pode ser variado -> decidir implementação (merge seed e sequentialRead , passar both)
 // Fix where FIX is commented
 // Implementar timers ? (server tcp leva accept mas read demora mil anos)
-// nao bazar quando erros em server
 // Fazer precaução para funções de handling de ficheiros q às vezes têm erros de file n existir
-// Proteger de EINTR
-// Add loop to tcp read
 // Fix memory leaks (valgrind this b)
-// check if send funcs are using string or char *
 // comment stuff on other files, variables 
 // check after game stored
-// test state on finished game
 // maybe change state to last summary only return content
 // check error cases for makeplay and makeguess
 // check if if else order on plays and guesses is right
@@ -74,6 +70,9 @@ int main(int argc, char const *argv[])
         exitServer(1, fd, res);
     }
     signal(SIGINT, handleCtrlC);
+    memset(&act,0,sizeof act);
+    act.sa_handler=SIG_IGN;
+    if(sigaction(SIGPIPE,&act,NULL)==-1)/*error*/exit(1);
     if (pid > 0)
     {
 
@@ -218,8 +217,9 @@ int main(int argc, char const *argv[])
 
         char buffer[129];
         int ret;
-        act.sa_handler=SIG_IGN;
-        if(sigaction(SIGCHLD,&act,NULL)==-1)/*error*/exitServer(1, fd, res);
+        struct sigaction act2;
+        act2.sa_handler=SIG_IGN;
+        if(sigaction(SIGCHLD,&act2,NULL)==-1)/*error*/exitServer(1, fd, res);
         if((fd=socket(AF_INET,SOCK_STREAM,0))==-1)exitServer(1, fd, res);//error
         int iSetOption = 1;
         n = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption, sizeof(iSetOption));

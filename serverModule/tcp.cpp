@@ -1,4 +1,3 @@
-// Fix imports
 #include "tcp.h"
 
 /* Send TCP message */
@@ -7,9 +6,15 @@ void sendTCP(int fd, const char * message, size_t len) {
     size_t n = len;
     while(n>0) {
         while ((nw=write(fd, message, n))<=0 && max_send > 0) {
+            if (nw < 0) {
+                if (errno == EINTR)
+                    continue;  
+                else  
+                    max_send--;
+            }           
             nw=write(fd, message,n);
-            max_send--;
         }
+        max_send = 5;
         n -= nw;
         message += nw;
     }

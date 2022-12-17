@@ -6,8 +6,13 @@ void sendUDP(int fd, const char * message, size_t len, struct sockaddr_in addr, 
     int max_send = 5;
     int n = sendto(fd, message, len ,0 , (struct sockaddr*)&addr, addrlen);
     while (n == -1 && max_send > 0) {
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;    
+            else
+                max_send--;
+        }
         n = sendto(fd, message, len ,0 , (struct sockaddr*)&addr, addrlen);
-        max_send--;
     }
     return;
 }
