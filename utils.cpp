@@ -144,24 +144,24 @@ void copyString(char *p, std::string s) {
 
 ssize_t readn(int fd, void *buffer, size_t n)
 {
-    ssize_t numRead;                    /* # of bytes fetched by last read() */
-    size_t totalRead;                     /* Total # of bytes read so far */
+    ssize_t numRead;
+    size_t totalRead;
     char *buf;
-
-    buf = (char*)buffer;                       /* No pointer arithmetic on "void *" */
+    
+    buf = (char*)buffer;                       
     for (totalRead = 0; totalRead < n; ) {
         numRead = read(fd, buf, n - totalRead);
 
-        if (numRead == 0)               /* EOF */
-            return totalRead;             /* May be 0 if this is first read() */
+        if (numRead == 0)  // EOF
+            return totalRead;             
         if (numRead == -1) {
             if (errno == EINTR)
-                continue;               /* Interrupted --> restart read() */
+                continue;               
             else
-                return -1;              /* Some other error */
+                return -1;              
         }
         totalRead += numRead;
         buf += numRead;
     }
-    return totalRead;                     /* Must be 'n' bytes if we get here */
+    return totalRead;                     
 }

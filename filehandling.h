@@ -1,5 +1,8 @@
 #include <string>
 
+/* Create Game File for playerID with word */
+void createGameFile(std::string playerID, std::string word, std::string hint);
+
 /* Delete file given his name */
 int deleteFile(std::string filename);
 
