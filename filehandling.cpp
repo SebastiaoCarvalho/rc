@@ -7,6 +7,14 @@
 #include <sys/stat.h>
 #include "filehandling.h"
 
+/* Create Game File for playerID with word */
+void createGameFile(std::string playerID, std::string word, std::string hint) {
+    std::ofstream file;
+    file.open("GAMES/GAME_" + playerID);
+    file << word + " " + hint << std::endl;
+    file.close();
+}
+
 /* Delete file given his name */
 int deleteFile(std::string filename) {
     return remove(filename.c_str()) == 0;
