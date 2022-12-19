@@ -26,12 +26,6 @@ std::string port="58011";     //O default devia ser 58002
 
 
 //  LIMITAR NUMERO DE PORTS
-// vale a pena aumentar iterationSize?
-// auto-avaliação?
-// Podem jogar dois player diferentes IDs na mesma sessão?
-// Abrir udp logo no inicio?
-// Cena do state de novo. Se não há nenhum jogo a decorrer como posso considerar o current gamme como terminado
-// O que fazer perante um status ERR
 
 int main(int argc, char const *argv[]) {
     
@@ -112,9 +106,9 @@ int main(int argc, char const *argv[]) {
                     printf("Something went wrong. Please try again.\n");
                 }
             }
-            // If the message recieved is for example: "FALTA"
+            // If the message recieved is for example: "RLL"
             else {
-                printf("Something went wrong. Please try again.\n");
+                printf("Something went wrong. Please check if your player ID is correct and try again. \n");
             }
             close(fd);
         }
@@ -177,13 +171,14 @@ int main(int argc, char const *argv[]) {
                     trial += 1;
                 }
                 else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
-                    printf("You have exceeded the maximum number of errors. You've lost the game.\n");
+                    printf("You have exceeded the maximum number of errors. You have lost the game.\n");
                     trial = 1; 
                     gameActive = 0;
                 }
                 else if (strcmp(parameters[1].c_str(), "INV") == 0) {
                     // If trials is invalid, set trials to the value sent by the server
-                    printf("Something went wrong. Please try again.\n");
+                    printf("It seems the information you provided is different from the information present on the " \
+                    "server. Please try again.\n");
                     trial = atoi(parameters[2].c_str());
                 }
                 else if (strcmp(parameters[1].c_str(), "ERR") == 0) {
@@ -237,13 +232,14 @@ int main(int argc, char const *argv[]) {
                     trial += 1;
                 }
                 else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
-                    printf("You have exceeded the maximum number of errors. You've lost the game.\n");
+                    printf("You have exceeded the maximum number of errors. You have lost the game.\n");
                     trial = 1; 
                     gameActive = 0;
                 }
                 else if (strcmp(parameters[1].c_str(), "INV") == 0) {
                     // If trials is invalid, set trials to the value sent by the server
-                    printf("Something went wrong. Please try again.\n");
+                    printf("It seems the information you provided is different from the information present on the " \
+                    "server. Please try again.\n");
                     trial = atoi(parameters[2].c_str());
                 }
                 else if (strcmp(parameters[1].c_str(), "ERR") == 0) {
@@ -321,7 +317,7 @@ int main(int argc, char const *argv[]) {
             
             // Send TCP message
             sendTCP(fd, messageToSend);
-            
+
             // Read TCP message
             readTcp(readfds, tv, fd, n, messageToSend, "state");
 
@@ -368,7 +364,9 @@ int main(int argc, char const *argv[]) {
     
             if(gameActive == 0) {
                 printf("Closing aplication now...\n");
-                sleep(1);
+                sleep(0.7);
+                std::string().swap(currentWord);
+                std::string().swap(playerID);
                 freeaddrinfo(res);
                 close(fd);
                 exit(0);
@@ -388,9 +386,12 @@ int main(int argc, char const *argv[]) {
                     printf("Something went wrong. Please try again.\n");              }
                 else if (strcmp(parameters[1].c_str(), "OK") == 0) {
                     printf("You have successfully quit the game. Closing apllication now...\n");
-                    sleep(1);
+                    sleep(0.7);
                     gameActive = 0;
                     trial = 1;
+                    std::string().swap(currentWord);
+                    std::string().swap(playerID);
+                    std::vector<std::string>().swap(parameters);
                     freeaddrinfo(res);
                     close(fd);
                     exit(0);
@@ -458,7 +459,7 @@ ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sock
     while(1) {
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
-        tv.tv_sec = 2;
+        tv.tv_sec = 1;
         tv.tv_usec = 0;
 
         int rv = select(fd+1, &readfds, NULL, NULL, &tv);
@@ -495,6 +496,7 @@ int readStatusMessageHint(std::string status, int wordsRead) {
         return wordsRead;
     }
     else if (strcmp(status.c_str(), "OK") == 0) {
+        printf("The image file is being loaded...\n");
         wordsRead+=1;
         return wordsRead;
     }
@@ -510,7 +512,7 @@ int readStatusMessageState(std::string status, int wordsRead) {
         printf("You haven't completed a game yet nor do you have an active game. To play start a game type: 'sg (yourID)'\n");
         return wordsRead;
     }
-    else if (strcmp(status.c_str(),"FIN") == 0 or strcmp(status.c_str(),"ACT") == 0){
+    else if (strcmp(status.c_str(),"FIN") == 0 or strcmp(status.c_str(),"ACT") == 0) {
         wordsRead+=1;
         return wordsRead;
     }
@@ -573,7 +575,8 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
                 else if (type == "state") {
                     wordsRead = readStatusMessageState(status, wordsRead);
                 }
-                else if (wordsRead == 1) {  
+                else if (wordsRead == 1) {
+                    printf("Something went wrong. Please try again.\n");  
                     break;
                 }
             }
@@ -584,6 +587,7 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
                 filename += buffer;
                 continue;
             } else {
+                printf("The file will be saved locally with the name: %s.\n", filename.c_str());
                 wordsRead+=1;
             }
         }
@@ -595,7 +599,7 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
             } else {
                 wordsRead+=1;
                 fSize = atoi(sizeOfFile.c_str());
-                iterationSize = 1;
+                iterationSize = 128;
                 file = fopen(filename.c_str(), "w");
             }   
         }
@@ -603,9 +607,6 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
         else if (wordsRead == 4) {
             //Última leitura ou se o tamanho for menor que a primeira iteração
             if (lastRead == 1 or fSize < iterationSize) {
-                if (type == "scoreboard") {
-                    buffer[n-1]='\0';
-                }
                 fwrite(buffer, sizeof(char), n, file);
                 if (type != "hint") {
                     printf("%s", buffer); 
@@ -632,7 +633,7 @@ void readTcp(fd_set readfds, timeval tv,int fd, ssize_t n, std::string messageTo
     while(1) {
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
-        tv.tv_sec = 2;
+        tv.tv_sec = 1;
         tv.tv_usec = 0;
 
         int rv = select(fd+1, &readfds, NULL, NULL, &tv);
@@ -641,8 +642,7 @@ void readTcp(fd_set readfds, timeval tv,int fd, ssize_t n, std::string messageTo
             readMessageTcp(fd, n, type);
             break;
         } else {
-            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
-            if (n == -1) exit(1);
+            sendTCP(fd, messageToSend);
         }
     }
 }
