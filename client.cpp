@@ -108,7 +108,7 @@ int main(int argc, char const *argv[]) {
             }
 
             //printf("%ld", parameters.size());
-            /*
+            
             // If game is good to go, create word, else print error message
             if (strcmp(parameters[1].c_str(), "OK") == 0) {
                 // Create empty  word
@@ -126,8 +126,8 @@ int main(int argc, char const *argv[]) {
                 printf("You can't start a new game. You have to wait for the current game to finish.\n");
                 close(fd);
             }
-            */
-            if (strcmp(parameters[0].c_str(), "ERR") == 0) {
+           
+            else if (strcmp(parameters[0].c_str(), "ERR") == 0) {
                 printf("The player ID you provided is wrong. Please make sure your player ID is 6 digits long.\n");
                 close(fd);
             }
