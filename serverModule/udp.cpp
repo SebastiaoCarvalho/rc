@@ -100,7 +100,7 @@ void startGame(std::string playerID, bool sequentialRead, int * readArgNumber, s
     else {
         status = "OK";
         if (! verifyExistence("GAMES/GAME_" + playerID)) { // get new word from word file
-            if (sequentialRead) readSequentialWord(fileName, &word, &hint, readArgNumber); // read A
+            if (sequentialRead) readSequentialWord(fileName, &word, &hint, readArgNumber); 
             else readWord(fileName, &word, &hint, readArgNumber);
             createGameFile(playerID, word, hint);
         }
@@ -185,12 +185,11 @@ int scoreCalc(int errorsMax, int errorsMade, int trials) {
 /* Save score file for playerID's game */
 void saveScore(std::string playerID) {
     std::string filename = "GAMES/GAME_" + playerID;
-    std::string word = sortStringVector(stringSplit(getLine(filename, 1), ' '))[0];
+    std::string word = stringSplit(getLine(filename, 1), ' ')[0];
     int errors = maxErrors(word);
     int trials = getLineNumber(filename) - 1;
     int errorsMade = getErrorsMade(playerID);
     int succ = trials - errorsMade;
-    //int score = (errors - errorsMade) * 100 / errors;
     int score = scoreCalc(errors, errorsMade, trials);
     printf("Score: %d\n", score);
     std::string scoreS = std::to_string(score);

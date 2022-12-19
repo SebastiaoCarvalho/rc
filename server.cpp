@@ -24,49 +24,52 @@
 // TODO : 
 // Test server on sigma
 // Start game tem argumento readArgs que pode ser variado -> decidir implementação (merge seed e sequentialRead , passar both)
-// Fix where FIX is commented
 // Implementar timers ? (server tcp leva accept mas read demora mil anos)
 // Fazer precaução para funções de handling de ficheiros q às vezes têm erros de file n existir
 // Fix memory leaks (valgrind this b)
-// comment stuff on other files, variables 
 // check after game stored
 // maybe change state to last summary only return content
 // check error cases for makeplay and makeguess
 // check if if else order on plays and guesses is right
-// review global vars like fileName and wordG
 // handle signals
 // handle errors
 // handle exits freeing stuff
 
 // DUVIDAS:
+// 1. Não posso usar alocação dinâmica?
 // 2. Palavra pode ter digitos?
+// 3. Verificar erros bind serve dar exit?
 
-
-struct sigaction act;
-int fd, newfd, errcode, seed, lineNumber = 0;
-socklen_t addrlen;
-struct addrinfo hints,*res;
-struct sockaddr_in addr;
-std::string fileName;
-std::string port = "58002";
-bool verbose = false;
-bool sequentialRead = false;
+// Global variables
+int fd;                // Socket file descriptor
+struct addrinfo hints,*res; // Socket address info
 
 int main(int argc, char const *argv[])
 {
     // Function declarations 
-    // void handleCtrlC(int s);
-    void readFlags(int argc, char const *argv[]);
+    void readFlags(int argc, char const *argv[], std::string  * fileName, std::string  * port, bool  * verbose, bool * sequentialRead);
     void bootServer();
     void handleCtrlC(int s);
 
+    // Variable declarations
     ssize_t n;
-    readFlags(argc, argv);
+    struct sigaction act;
+    int newfd, errcode, readArg = 0; // readArg is either a seed or lineNumber depending on sequentialRead
+    socklen_t addrlen;
+    struct sockaddr_in addr;
+    std::string fileName;
+    std::string port = "58002"; // default port
+    bool verbose = false; // default verbose
+    bool sequentialRead = false; // default read is random
+
+    readFlags(argc, argv, &fileName, &port, &verbose, &sequentialRead);
     bootServer();
     printf("Port: %s, File: %s, Verbose: %d\n", port.c_str(), fileName.c_str(), verbose);   
     int pid = fork();
     if (pid == -1) {
-        perror("fork");
+        if (verbose) {
+            printf("Error forking process\n");
+        }
         exitServer(1, fd, res);
     }
     signal(SIGINT, handleCtrlC);
@@ -118,7 +121,7 @@ int main(int argc, char const *argv[])
                 if (verbose) {
                     printf("Received SNG with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
                 }
-                startGame(playerID, sequentialRead, &seed, fileName, fd, addr, addrlen, verbose);
+                startGame(playerID, sequentialRead, &readArg, fileName, fd, addr, addrlen, verbose);
             }
             else if (strncmp(buffer, "PLG", 3) == 0) {
                 if (tokens.size() != 4) {
@@ -217,7 +220,8 @@ int main(int argc, char const *argv[])
 
         char buffer[129];
         int ret;
-        struct sigaction act2;
+        struct sigaction act2; 
+        memset(&act2,0,sizeof(act2));
         act2.sa_handler=SIG_IGN;
         if(sigaction(SIGCHLD,&act2,NULL)==-1)/*error*/exitServer(1, fd, res);
         if((fd=socket(AF_INET,SOCK_STREAM,0))==-1)exitServer(1, fd, res);//error
@@ -242,7 +246,12 @@ int main(int argc, char const *argv[])
             else if(pid==0) { // child process
                 
                 n = readn(newfd, buffer, 4);
-                if (n == -1) /*error*/ exitServer(1, fd, res); // FIX
+                if (n == -1) /*error*/ {
+                    if (verbose) {
+                        printf("Error on reading system call.\n");
+                    }
+                    continue;
+                }
                 buffer[n - 1] = '\0'; // Replace newline with null terminator
                 if (strncmp(buffer, "GSB", 3) == 0) {
                     if (verbose) {
@@ -252,7 +261,12 @@ int main(int argc, char const *argv[])
                 }
                 else if (strncmp(buffer, "GHL", 3) == 0) {
                     n = readn(newfd, buffer, 7);
-                    if (n == -1) /*error*/ exitServer(1, fd, res); // FIX
+                    if (n == -1) /*error*/ {
+                        if (verbose) {
+                            printf("Error on reading system call.\n");
+                        }
+                        continue;
+                    }
                     buffer[n - 1] = '\0'; // Replace newline with null terminator
                     std::string playerID = buffer;
                     if (verbose) {
@@ -262,7 +276,12 @@ int main(int argc, char const *argv[])
                 }
                 else if (strncmp(buffer, "STA", 3) == 0) {
                     n = readn(newfd, buffer, 7);
-                    if (n == -1) /*error*/ exitServer(1, fd, res); // FIX
+                    if (n == -1) /*error*/ {
+                        if (verbose) {
+                            printf("Error on reading system call.\n");
+                        }
+                        continue;
+                    }
                     buffer[n - 1] = '\0'; // Replace newline with null terminator
                     std::string playerID = buffer;
                     if (verbose) {
@@ -294,32 +313,32 @@ void handleCtrlC(int s){
 }
 
 /* Read flags from command line */
-void readFlags(int argc, char const *argv[]) {
+void readFlags(int argc, char const *argv[], std::string * fileName, std::string * port, bool * verbose, bool * sequentialRead) {
     if (argc == 1) {
         printf("No file name specified. Using default file name: words.txt\n");
-        fileName = "words.txt";
+        * fileName = "words.txt";
     }
     else {
-        fileName = argv[1];
+        * fileName = argv[1];
     }
     int argn = 1;
     while (argn < argc) {
         if (strcmp(argv[argn], "-p") == 0) {
             if (argn + 1 < argc) {
-                port = argv[argn + 1];
+                * port = argv[argn + 1];
                 argn += 2;
             }
             else {
                 printf("Port number not specified");
-                port = "58002";
+                * port = "58002";
             }
         }
         else if (strcmp(argv[argn], "-v") == 0) {
-            verbose = true;
+            * verbose = true;
             argn += 1;
         }
         else if (strcmp(argv[argn], "-s") == 0) {
-            sequentialRead = true;
+            * sequentialRead = true;
             argn += 1;
         }
         else {

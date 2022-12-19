@@ -27,7 +27,7 @@ std::string getScoreBoard() {
         return "";
     }
     std::string scoreboard = "\n----------------------------- TOP " + 
-    std::to_string(files.size()) + 
+    std::to_string(files.size() < 10 ? files.size() : 10) + 
     " SCORES -----------------------------\n";
     scoreboard += "\n";
     scoreboard += "SCORE PLAYER     WORD                      GOOD TRIALS  TOTAL TRIALS\n\n";
@@ -57,7 +57,12 @@ void sendScoreBoard(int newfd, bool verbose) {
         message = "RSB OK scoreboard.txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
     }
     if (verbose) {
-        printf("Replying with scoreboard\n");
+        if (scoreboard == "") {
+            printf("Replied with empty scoreboard.\n");
+        }
+        else {
+            printf("Replied with scoreboard on file scoreboard.txt.\n");
+        }
     }
     sendTCP(newfd, message.c_str(), message.size());
 }
@@ -103,10 +108,12 @@ void readImage(std::string filename, char ** content, size_t * size) {
     FILE * file = fopen(filename.c_str(), "r"); // search file in images directory
     unsigned char character;
     std::vector<unsigned char> image;
+    character = getc(file);
     while (!feof(file)) {
-       character = getc(file);
-       image.push_back(character);
+        image.push_back(character);
+        character = getc(file);
     }
+    printf("Image size: %ld\n", image.size());
     fclose(file);
     *size = image.size();
     *content = new char[*size + 1];
@@ -118,7 +125,7 @@ void readImage(std::string filename, char ** content, size_t * size) {
 
 /* Send hint image content from playerID's game to player application */
 void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool verbose) {
-    std::string message;
+    std::string message, imageName;
     size_t size;
     char * content = NULL;
     if (! verifyExistence("GAMES/GAME_" + playerID)) {
@@ -126,7 +133,7 @@ void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool v
     }
     else {
         std::string word = stringSplit(getLine("GAMES/GAME_" + playerID, 1), ' ')[0];
-        std::string imageName = getImageFilename(playerID, wordsFileName);
+        imageName = getImageFilename(playerID, wordsFileName);
         if (imageName == "") {
             message = "RHL NOK\n";
         }
@@ -143,13 +150,18 @@ void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool v
         }
     }
     if (verbose) {
-        printf("Replying with hint\n");
+        if (message == "RHL NOK\n") {
+            printf("Replied with NOK.\n");
+        }
+        else {
+            printf("Replied with OK and image on file %s.\n", imageName.c_str());
+        }
     }
     printf("Message: %s", message.c_str());
     sendTCP(newfd, message.c_str(), message.size());
     if (content != NULL) {
         sendTCP(newfd, content, size);
-        //delete content ;
+        delete [] content ;
     }
 }
 
@@ -211,7 +223,12 @@ void sendState(int newfd, std::string playerID, bool verbose) {
         message = "RST NOK\n";
     }
     if (verbose) {
-        printf("Replying with state\n");
+        if (message == "RST NOK\n") {
+            printf("Replied with NOK. \n");
+        }
+        else {
+            printf("Replied with state on file %s.\n", file_content.c_str());
+        }
     }
     sendTCP(newfd, message.c_str(), message.size());
 }
