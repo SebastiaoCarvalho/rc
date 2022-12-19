@@ -25,11 +25,8 @@ std::string getDateFormatted(tm *ltm);
 /* Get the current date and time */
 int isNumber(std::string s);    
 
-/* Sort a vector of strings */
+/* Quicksort vector of strings, returning the sorted vector */
 std::vector<std::string> sortStringVector(std::vector<std::string> v);
-
-/* Copy a string to a char pointer */
-void copyString(char * p, std::string s);
 
 /* Read until size n */
 ssize_t readn(int fd, void *buffer, size_t n);
