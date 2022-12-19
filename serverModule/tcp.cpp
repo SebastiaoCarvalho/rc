@@ -3,7 +3,6 @@
 /* Send TCP message */
 void sendTCP(int fd, const char * message, size_t len) {
     int nw, max_send = 5;
-    int total = 0;
     size_t n = len;
     while(n>0) {
         while ((nw=write(fd, message, n))<=0 && max_send > 0) {
@@ -18,9 +17,7 @@ void sendTCP(int fd, const char * message, size_t len) {
         max_send = 5;
         n -= nw;
         message += nw;
-        total += nw;
     }
-    printf("Sent %d bytes.\n", total);
 }
 
 /* Get the top 10 games */
@@ -172,7 +169,6 @@ std::string getSummary(std::string filename) {
     else summary = "No transactions found\n";
     for (int i = 1; i <= trials; i++) {
         std::string line = getLine(filename, i + 1);
-        printf("line: %s\n", line.c_str());
         std::vector<std::string> words = stringSplit(line, ' ');
         if (words[0] == "T") {
             summary += "Letter trial: " + words[2] + "\n";
@@ -188,7 +184,6 @@ std::string getSummary(std::string filename) {
         }
         summary += "Solved so far: " + game + "\n";
     }
-    printf("created state file with size %ld\n", summary.size());
     return summary;
 }
 
@@ -197,10 +192,9 @@ std::string getLastGameSummary(std::string playerID) {
     std::vector<std::string> files = sortStringVector(listDirectory("GAMES/" + playerID));
     ssize_t size = files.size();
     std::string filename = "GAMES/" + playerID + "/" + files[size - 1];
-    std::string file_content = getSummary(filename);
+    std::string file_content = "Finished game found for player " + playerID + "\n" + getSummary(filename);
     std::string res = "STATE_" + playerID + ".txt " + std::to_string(file_content.size()) + " " 
-    + "Finished game found for player " + playerID + "\n" + file_content;
-    printf("res: %s", res.c_str());
+    + file_content + "\n" ;
     return res;
 }
 
@@ -225,10 +219,9 @@ void sendState(int newfd, std::string playerID, bool verbose) {
             printf("Replied with NOK. \n");
         }
         else {
-            printf("Replied with state on file %s.\n", file_content.c_str());
+            printf("Replied with state on file %s.\n", ("STATE_" + playerID + ".txt").c_str());
         }
     }
-    printf("message: %s", message.c_str());
-    printf("message size: %ld", message.size());
+
     sendTCP(newfd, message.c_str(), message.size());
 }
