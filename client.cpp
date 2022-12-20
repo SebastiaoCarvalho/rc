@@ -1,69 +1,84 @@
 //FPRINTF NÃO ESCREVE '\0'
 
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <string.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <stdio.h>
 #include <iostream>
-#include <string>
 #include <fstream>
+#include <fcntl.h>
+#include <signal.h>
+#include <string.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <fcntl.h>
+#include <unistd.h>
 #include "utils.h"
-
-int fd,errcode;
-socklen_t addrlen;
-struct addrinfo hints,*res;
-struct sockaddr_in addr;
-std::string machineIP = "127.0.0.1"; //O default é o IP da máquina -> DESKTOP-8NS8GE1 ou 127.0.0.1
-std::string port="58002";     //O default devia ser 58002
 
 
 //  LIMITAR NUMERO DE PORTS
+// Se criação de socket falhar, repetir automaticamente
+
+// Global variables
+int fd;                // Socket file descriptor
+struct addrinfo hints,*res; // Socket address info
 
 int main(int argc, char const *argv[]) {
     
-    void readFlags(int argc, char const *argv[]);
-    void sendTCP(int fd, std::string message);
+    // Functions declaration
+    void readFlags(int argc, char const *argv[], std::string *machineIP, std::string *port);
+    void handleCtrlC(int exitValue);
     ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend);
     void sendAndReceiveUdpMessage(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend);
     int readStatusMessageHint(std::string status, int wordsRead);
     int readStatusMessageState(std::string status, int wordsRead);
     int readStatusMessageScoreboard(std::string status, int wordsRead);
     void readMessageTcp(int fd, ssize_t n, std::string type);
+    void sendTCP(int fd, std::string message);
     void readTcp(fd_set readfds, timeval tv, int fd, ssize_t n, std::string messageToSend, std::string type);
+    
+    // Variables declaration
+    std::string machineIP = "127.0.0.1"; //O default é o IP da máquina -> DESKTOP-8NS8GE1 ou 127.0.0.1
+    std::string port="58002";     //O default devia ser 58002
 
+    int fd,errcode;
+    struct sigaction act;
+    struct addrinfo hints,*res;
+    struct sockaddr_in addr;
     char buffer[256];         
-    std::string playerID;
+    std::string playerID = "099222";
     std::string currentWord;
     int gameActive = 0;
     int trial = 1; 
+    int maxErrors = 0;
     ssize_t n;
     fd_set readfds;  
     struct timeval tv;
+    
 
-    readFlags(argc, argv);
+    readFlags(argc, argv, &machineIP, &port);
 
     memset(&hints,0,sizeof hints);
     hints.ai_family=AF_INET; //IPv4
     hints.ai_socktype=SOCK_DGRAM; //UDP socket
     errcode=getaddrinfo(machineIP.c_str(),port.c_str(),&hints,&res);
-    if(errcode!=0) /*error*/ exit(1);
-    
+    if(errcode!=0) exit(1);
+    signal(SIGINT, handleCtrlC);
+    memset(&act,0,sizeof act);
+    act.sa_handler=SIG_IGN;
+    if(sigaction(SIGPIPE,&act,NULL)==-1) exit(1);
+
     while(1) {
     
+        // Read command
         std::string word; 
         std::cin >> word;
         
-        if(strcmp(word.c_str(),"start") == 0 or strcmp(word.c_str(),"sg") ==0) {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) exit(1);
+        if(word == "start" or word == "sg") {
+            fd=socket(AF_INET,SOCK_DGRAM,0); // Create UDP socket
+            if(fd==-1) {
+                printf("Error creating socket. Please try again.\n");
+                continue;
+            }
 
             // Set socket to non-blocking
             fcntl(fd, F_SETFL, O_NONBLOCK);
@@ -82,9 +97,9 @@ int main(int argc, char const *argv[]) {
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
             // If there are at least 2 parameters and the first word is correct
-            if (parameters.size() > 1 && strcmp("RSG", parameters[0].c_str()) == 0) { 
+            if (parameters.size() > 1 && parameters[0] == "RSG") { 
                 // If game is good to go, create word, else print error message
-                if (strcmp(parameters[1].c_str(), "OK") == 0) {
+                if (parameters[1] == "OK") {
                     // Create empty  word
                     std::string wordSpaces = repeat("_ ", atoi(parameters[2].c_str()));
                     wordSpaces[wordSpaces.length()-1] = '\0';
@@ -94,11 +109,13 @@ int main(int argc, char const *argv[]) {
                     printf("New game started. Guess a %s letter word: %s. You can miss up to %s times.\n", parameters[2].c_str(), wordSpaces.c_str(), parameters[3].c_str());
                     gameActive = 1;
                     playerID = id;
+                    maxErrors = atoi(parameters[3].c_str());
                 }
-                else if (strcmp(parameters[1].c_str(), "NOK") == 0) {
+                else if (parameters[1] == "NOK") {
                     printf("You can't start a new game. You have to wait for the current game to finish.\n");
+                    gameActive = 0;
                 }
-                else if (strcmp(parameters[1].c_str(), "ERR") == 0) {
+                else if (parameters[1] == "ERR") {
                     printf("The player ID you provided is wrong. Please make sure your player ID is 6 digits long.\n");
                 }
                 // If the message recieved is for example: "RSG BOLA"
@@ -110,11 +127,17 @@ int main(int argc, char const *argv[]) {
             else {
                 printf("Something went wrong. Please check if your player ID is correct and try again. \n");
             }
-            close(fd);
+            n = close(fd);
+            if (n == -1) {
+                continue;
+            }
         }
-        else if(strcmp(word.c_str(),"play") == 0 or strcmp(word.c_str(),"pl") ==0) {
+        else if(word == "play" or word == "pl") {
             fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) exit(1);
+            if(fd==-1) {
+                printf("Error creating socket. Please try again.\n");
+                continue;
+            }
 
             // Set socket to non-blocking
             fcntl(fd, F_SETFL, O_NONBLOCK);
@@ -141,10 +164,10 @@ int main(int argc, char const *argv[]) {
             // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
  
-            // If there are at least 2 parameters
-            if (parameters.size() > 1 && strcmp("RLG", parameters[0].c_str()) == 0) {
+            // If there are at least 2 parameters and the first word is correct
+            if (parameters.size() > 1 && parameters[0] == "RLG") {
                 // If ok, replace the letters in the given positions 
-                if (strcmp(parameters[1].c_str(), "OK") == 0) {
+                if (parameters[1] == "OK") {
                     for (int i=0; i<atoi(parameters[3].c_str()); i++) {
                         int pos;
                         pos = atoi(parameters[4+i].c_str());
@@ -153,7 +176,7 @@ int main(int argc, char const *argv[]) {
                     trial += 1;
                     printf("Word: %s\n", currentWord.c_str());
                 }
-                else if (strcmp(parameters[1].c_str(), "WIN") == 0) {
+                else if (parameters[1] == "WIN") {
                     for (int i = 0; i<(int)currentWord.length(); i++) {
                         if (currentWord[i] == '_') {
                             currentWord[i] = letter[0];
@@ -163,25 +186,26 @@ int main(int argc, char const *argv[]) {
                     trial = 1;
                     gameActive = 0;
                 }
-                else if (strcmp(parameters[1].c_str(), "DUP") == 0) {
+                else if (parameters[1] == "DUP") {
                     printf("You have already tried that letter. Try another letter please.\n");
                 }
-                else if (strcmp(parameters[1].c_str(), "NOK") == 0) {
-                    printf("The letter %s is not part of the word: %s.\n", letter.c_str(), currentWord.c_str());
+                else if (parameters[1] == "NOK") {
+                    maxErrors--;
+                    printf("The letter %s is not part of the word: %s. You have %d errors left.\n", letter.c_str(), currentWord.c_str(), maxErrors);
                     trial += 1;
                 }
-                else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
+                else if (parameters[1] == "OVR") {
                     printf("You have exceeded the maximum number of errors. You have lost the game.\n");
                     trial = 1; 
                     gameActive = 0;
                 }
-                else if (strcmp(parameters[1].c_str(), "INV") == 0) {
+                else if (parameters[1] == "INV") {
                     // If trials is invalid, set trials to the value sent by the server
                     printf("It seems the information you provided is different from the information present on the " \
                     "server. Please try again.\n");
                     trial = atoi(parameters[2].c_str());
                 }
-                else if (strcmp(parameters[1].c_str(), "ERR") == 0) {
+                else if (parameters[1] == "ERR") {
                     printf("The data sent is not valid. Please check if your playerID is valid. If you don't " \
                     "have a game ongoing, please start one with the command: 'start (yourID)'.\n");
                 }
@@ -191,11 +215,17 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Something went wrong. Please try again.\n");
             }
-            close(fd);
+            n = close(fd);
+            if (n == -1) {
+                continue;
+            }
         }
-        else if(strcmp(word.c_str(),"guess") == 0 or strcmp(word.c_str(),"gw") ==0) {
+        else if(word == "guess" or word == "gw") {
             fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) exit(1);
+            if(fd==-1) {
+                printf("Error creating socket. Please try again.\n");
+                continue;
+            }
 
             // Read word to be guessed 
             std::string guessedWord;
@@ -220,29 +250,33 @@ int main(int argc, char const *argv[]) {
             // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
-            // If there are at least 2 parameters
-            if (parameters.size() > 1 && strcmp("RWG", parameters[0].c_str()) == 0) {
+            // If there are at least 2 parameters and the first word is correct
+            if (parameters.size() > 1 && parameters[0] == "RWG") {
                 if (strcmp(parameters[1].c_str(), "WIN") == 0) { 
                     printf("Great job! You've gessed the right word.\n");
                     trial = 1;
                     gameActive = 0;
                 }
-                else if (strcmp(parameters[1].c_str(), "NOK") == 0) {
-                    printf("The word %s is not the right word.\n", guessedWord.c_str());
+                else if (parameters[1] == "DUP") {
+                    printf("You have already tried to guess that word. Try another word please.\n");
+                }
+                else if (parameters[1] == "NOK") {
+                    maxErrors--;
+                    printf("The word %s is not the right word. You have %d errors left.\n", guessedWord.c_str(), maxErrors);
                     trial += 1;
                 }
-                else if (strcmp(parameters[1].c_str(), "OVR") == 0) {
+                else if (parameters[1] == "OVR") {
                     printf("You have exceeded the maximum number of errors. You have lost the game.\n");
                     trial = 1; 
                     gameActive = 0;
                 }
-                else if (strcmp(parameters[1].c_str(), "INV") == 0) {
+                else if (parameters[1] == "INV") {
                     // If trials is invalid, set trials to the value sent by the server
                     printf("It seems the information you provided is different from the information present on the " \
                     "server. Please try again.\n");
                     trial = atoi(parameters[2].c_str());
                 }
-                else if (strcmp(parameters[1].c_str(), "ERR") == 0) {
+                else if (parameters[1] == "ERR") {
                     printf("The data sent is not valid. Please check if your playerID is valid. If you don't " \
                     "have a game ongoing, please start one with the command: 'start (yourID)'.\n");
                 }
@@ -252,18 +286,28 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Something went wrong. Please try again.\n");
             }  
-            close(fd);          
+            n = close(fd);
+            if (n == -1) {
+                continue;
+            }          
         }
-        else if(strcmp(word.c_str(),"scoreboard") == 0 or strcmp(word.c_str(),"sb") ==0) {
+        else if(word == "scoreboard" or word == "sb") {
             fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
-            if(fd==-1) /*error*/exit(1);
+            if(fd==-1) {
+                printf("Error creating socket. Please try again.\n");
+                continue;
+            }
 
             // Create message  
             std::string messageToSend;
             messageToSend = "GSB\n";
 
             n = connect(fd, res->ai_addr, res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
+            if (n == -1) {
+                printf("Error connecting to server. Please try again.\n");
+                close(fd);
+                continue;
+            }
 
             // Send TCP message
             sendTCP(fd, messageToSend);
@@ -271,11 +315,17 @@ int main(int argc, char const *argv[]) {
             // Read TCP message
             readTcp(readfds, tv, fd, n, messageToSend, "scoreboard");
 
-            close(fd);
+            n = close(fd);
+            if (n == -1) {
+                continue;
+            }
         }
-        else if(strcmp(word.c_str(),"hint") == 0 or strcmp(word.c_str(),"h") ==0) {
+        else if(word == "hint" or word == "h") {
             fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
-            if(fd==-1) exit(1);
+            if(fd==-1) {
+                printf("Error creating socket. Please try again.\n");
+                continue;
+            }
             
             if(gameActive == 0) {
                 printf("You have to start a game first.\n");
@@ -287,7 +337,11 @@ int main(int argc, char const *argv[]) {
             messageToSend = "GHL " + playerID + "\n";
 
             n = connect(fd, res->ai_addr, res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
+            if (n == -1) {
+                printf("Error connecting to server. Please try again.\n");
+                close(fd);
+                continue;
+            }
 
             // Send TCP message
             sendTCP(fd, messageToSend);
@@ -295,15 +349,15 @@ int main(int argc, char const *argv[]) {
             // Read TCP message
             readTcp(readfds, tv, fd, n, messageToSend, "hint");   
             
-            close(fd);
+            n = close(fd);
+            if (n == -1) {
+                continue;
+            }
         }
-        //FALTA VER CASOS DE EXIT
-        else if(strcmp(word.c_str(),"state") == 0 or strcmp(word.c_str(),"st") ==0) {
+        else if(word == "state" or word == "st") {
             fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
-            if(fd==-1) /*error*/exit(1);
-            
-            if(playerID.length() == 0) {
-                printf("You have to start a game first.\n");
+            if(fd==-1) {
+                printf("Error creating socket. Please try again.\n");
                 continue;
             }
 
@@ -313,7 +367,11 @@ int main(int argc, char const *argv[]) {
             
 
             n = connect(fd, res->ai_addr, res->ai_addrlen);
-            if (n == -1) /*error*/ exit(1);
+            if (n == -1) {
+                printf("Error connecting to server. Please try again.\n");
+                close(fd);
+                continue;
+            }
             
             // Send TCP message
             sendTCP(fd, messageToSend);
@@ -321,11 +379,17 @@ int main(int argc, char const *argv[]) {
             // Read TCP message
             readTcp(readfds, tv, fd, n, messageToSend, "state");
 
-            close(fd);
+            n = close(fd);
+            if (n == -1) {
+                continue;
+            }
         }
-        else if(strcmp(word.c_str(),"quit") == 0) {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) /*error*/exit(1);
+        else if(word == "quit") {
+            fd=socket(AF_INET,SOCK_DGRAM,0); // Create UDP socket
+            if(fd==-1) {
+                printf("Error creating socket. Please try again.\n");
+                continue;
+            }
             
             if(gameActive == 0) {
                 printf("There's no game undergoing. If you wish to start a game, type: 'sg (yourID)'\n");
@@ -341,11 +405,12 @@ int main(int argc, char const *argv[]) {
             // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
+                        printf("%s", parameters[1].c_str());
             // If there are at least 2 parameters and the first word is correct
-            if (parameters.size() > 1 && strcmp("RQT", parameters[0].c_str()) == 0) { 
-                if(strcmp(parameters[1].c_str(), "ERR") == 0){
+            if (parameters.size() > 1 && parameters[0] == "RQT") { 
+                if(parameters[1] == "ERR"){
                     printf("Something went wrong. Please try again.\n");            }
-                else if (strcmp(parameters[1].c_str(), "OK") == 0) {
+                else if (parameters[1] == "OK") {
                     printf("You have successfully quit the game.\n");
                     gameActive = 0;
                     trial = 1;
@@ -356,19 +421,31 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Something went wrong. Please try again.\n");
             }
-            close(fd);
+            n = close(fd);
+            if (n == -1) {
+                continue;
+            }
         }
-        else if(strcmp(word.c_str(),"exit") == 0) {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) exit(1);
+        else if(word == "exit") {
+            fd=socket(AF_INET,SOCK_DGRAM,0); // Create UDP socket
+            if(fd==-1) {
+                printf("Error creating socket. Please try again.\n");
+                continue;
+            }
     
+            // If there's no game ongoing, just exit the program
             if(gameActive == 0) {
                 printf("Closing aplication now...\n");
-                sleep(0.7);
+                sleep(1);
+                std::string().swap(machineIP);
+                std::string().swap(port);
                 std::string().swap(currentWord);
                 std::string().swap(playerID);
                 freeaddrinfo(res);
-                close(fd);
+                n = close(fd);
+                if (n == -1) {
+                    continue;
+                }
                 exit(0);
             }
             
@@ -381,14 +458,16 @@ int main(int argc, char const *argv[]) {
             // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
-            if (parameters.size() > 1 && strcmp("RQT", parameters[0].c_str()) == 0) {
-                if(strcmp(parameters[1].c_str(), "ERR") == 0){
+            if (parameters.size() > 1 && parameters[0] == "RQT") {
+                if(parameters[1] == "ERR"){
                     printf("Something went wrong. Please try again.\n");              }
-                else if (strcmp(parameters[1].c_str(), "OK") == 0) {
+                else if (parameters[1] == "OK") {
                     printf("You have successfully quit the game. Closing apllication now...\n");
-                    sleep(0.7);
+                    sleep(1);
                     gameActive = 0;
                     trial = 1;
+                    std::string().swap(machineIP);
+                    std::string().swap(port);
                     std::string().swap(currentWord);
                     std::string().swap(playerID);
                     std::vector<std::string>().swap(parameters);
@@ -403,7 +482,10 @@ int main(int argc, char const *argv[]) {
             else {
                 printf("Something went wrong. Please try again.\n");
             }
-            close(fd);
+            n = close(fd);
+            if (n == -1) {
+                continue;
+            }
         }
         else {
             printf("Invalid command, please try again.\n");
@@ -417,23 +499,23 @@ int main(int argc, char const *argv[]) {
 
 
 // Read input optional flags 
-void readFlags(int argc, char const *argv[]) {
+void readFlags(int argc, char const *argv[], std::string * machineIP, std::string * port) {
     int argn = 1;
     while (argn < argc) {
         if (strcmp(argv[argn],"-n") == 0) {
             if (argn + 1 < argc) {
-                machineIP = argv[argn + 1];
+                *machineIP = argv[argn + 1];
                 argn += 2;
             } else {
-                machineIP = "tejo.tecnico.ulisboa.pt";
+                *machineIP = "tejo.tecnico.ulisboa.pt";
             }
         }
         else if (strcmp(argv[argn],"-p") == 0) {
             if (argn + 1 < argc) {
-                port = argv[argn + 1];
+                *port = argv[argn + 1];
                 argn += 2;
             } else {
-                port = "58011";
+                *port = "58011";
             }
         } else {
             argn += 1;
@@ -441,26 +523,25 @@ void readFlags(int argc, char const *argv[]) {
     }
 }
 
-// Send TCP message
-void sendTCP(int fd, std::string message) {
-    int nw, i = 0;
-    size_t n = message.length();
-    while(n>0) {
-        if ((nw=write(fd, message.substr(i, n).c_str(),n))<=0) {
-            exit(1);
-        }
-        n -= nw;
-        i += nw;
-    }
+/* Handle Ctrl C Event (SIGINT) */
+void handleCtrlC(int exitValue) {
+    printf("Caught exitting signal. Exiting...\n");
+    freeaddrinfo(res);
+    close(fd);
+    exit(exitValue);
 }
 
 // Recieve Udp message
 ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend) {
     while(1) {
+        // Define arguments to set timer
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
+        // Tiemout time
         tv.tv_sec = 1;
         tv.tv_usec = 0;
+        // Max number of tries to send message
+        int numberOfTries = 0;
 
         int rv = select(fd+1, &readfds, NULL, NULL, &tv);
 
@@ -469,9 +550,14 @@ ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sock
             n = recvfrom(fd, buffer, 256, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
             if (n == -1) exit(1);
             break;
+        } else if (numberOfTries == 5 && rv != 1) {
+            printf("The server is not responding. Please try again later.\n");
+            break;
         } else {
+            // If there's no response from GS, send the message again
             n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
             if (n == -1) exit(1);
+            numberOfTries++;
         }
     }
     return n;
@@ -491,11 +577,11 @@ void sendAndReceiveUdpMessage(fd_set readfds, timeval tv, int fd, ssize_t n, str
 }
 
 int readStatusMessageHint(std::string status, int wordsRead) {
-    if(strcmp(status.c_str(),"NOK") == 0) {
-        printf("Something went wrong. Please try again.\n");
+    if(status == "NOK") {
+        printf("The server was not able to provide you the image. Please try again.\n");
         return wordsRead;
     }
-    else if (strcmp(status.c_str(), "OK") == 0) {
+    else if (status == "OK") {
         printf("The image file is being loaded...\n");
         wordsRead+=1;
         return wordsRead;
@@ -508,11 +594,11 @@ int readStatusMessageHint(std::string status, int wordsRead) {
 }
 
 int readStatusMessageState(std::string status, int wordsRead) {
-    if(strcmp(status.c_str(),"NOK") == 0) {
+    if(status == "NOK") {
         printf("You haven't completed a game yet nor do you have an active game. To play start a game type: 'sg (yourID)'\n");
         return wordsRead;
     }
-    else if (strcmp(status.c_str(),"FIN") == 0 or strcmp(status.c_str(),"ACT") == 0) {
+    else if (status == "FIN" or status == "ACT") {
         wordsRead+=1;
         return wordsRead;
     }
@@ -524,11 +610,11 @@ int readStatusMessageState(std::string status, int wordsRead) {
 }
 
 int readStatusMessageScoreboard(std::string status, int wordsRead) {
-    if(strcmp(status.c_str(),"EMPTY") == 0) {
+    if(status == "EMPTY") {
         printf("The scoreboard is still empty.\n");
         return wordsRead;
     }
-    else if (strcmp(status.c_str(), "OK") == 0) {
+    else if (status == "OK") {
         wordsRead+=1;
         return wordsRead;
     }
@@ -544,6 +630,7 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
     int iterationSize = 1;
     int wordsRead = 0;
     int lastRead = 0;
+    std::string firstWord;
     std::string status;
     std::string filename;
     std::string sizeOfFile;
@@ -553,13 +640,21 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
     
     while((n = read(fd, buffer, iterationSize)) != 0) {
         if (n == -1)  exit(1);
-        //Da primeira vez lê apenas "RSB "
+        // Reads the first word
         if (wordsRead == 0) { 
-            if (strcmp(buffer, " ") == 0) {
-            wordsRead+=1;
+            if (strcmp(buffer, " ") != 0) {
+                firstWord += buffer;
+            } else {
+                // Checks if the message received is correct
+                if (firstWord == "RSB" or firstWord == "RHL" or firstWord == "RST") {
+                    wordsRead+=1;
+                } else {
+                    printf("Something went wrong. Please try again.\n");  
+                    break;
+                }
             }
         }
-        //Ler palavra status
+        // Reads the status word
         else if (wordsRead == 1) {
             if (strcmp(buffer, " ") != 0 && strcmp(buffer, "\n") != 0){
                 status += buffer;
@@ -580,17 +675,17 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
                 }
             }
         }
-        // Ler nome do ficheiro
+        // Reads the filename
         else if (wordsRead == 2) {
             if (strcmp(buffer, " ") != 0) {
                 filename += buffer;
                 continue;
             } else {
-                printf("The file will be saved locally with the name: %s.\n", filename.c_str());
+                printf("The file was saved locally with the name: %s.\n", filename.c_str());
                 wordsRead+=1;
             }
         }
-        // Ler tamanho do ficheiro
+        // Reads the file size
         else if (wordsRead == 3) {
             if (strcmp(buffer, " ") != 0) {
                 sizeOfFile += buffer;
@@ -602,9 +697,9 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
                 file = fopen(filename.c_str(), "w");
             }   
         }
-        // Ler o ficheiro
+        // Reads the file
         else if (wordsRead == 4) {
-            //Última leitura ou se o tamanho for menor que a primeira iteração
+            // Last time reading
             if (lastRead == 1 or fSize < iterationSize) {
                 fwrite(buffer, sizeof(char), n, file);
                 if (type != "hint") {
@@ -628,20 +723,39 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
     }
 }
 
+// Send TCP message
+void sendTCP(int fd, std::string message) {
+    int nw, i = 0;
+    size_t n = message.length();
+    // Write the message until n if its size is bigger than n
+    while(n>0) {
+        if ((nw=write(fd, message.substr(i, n).c_str(),n))<=0) {
+            exit(1);
+        }
+        n -= nw;
+        i += nw;
+    }
+}
+
 void readTcp(fd_set readfds, timeval tv,int fd, ssize_t n, std::string messageToSend, std::string type) {
     while(1) {
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
         tv.tv_sec = 1;
         tv.tv_usec = 0;
+        int numberOfTries = 0;
 
         int rv = select(fd+1, &readfds, NULL, NULL, &tv);
 
         if (rv == 1) {
             readMessageTcp(fd, n, type);
             break;
+        } else if (numberOfTries == 5 && rv != 1) {
+            printf("The server is not responding. Please try again later.\n");
+            break;
         } else {
             sendTCP(fd, messageToSend);
-        }
+            numberOfTries++;
+        } 
     }
 }
