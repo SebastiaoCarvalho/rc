@@ -26,7 +26,7 @@ void sendScoreBoard(int newfd, bool verbose);
 std::string getImageFilename(std::string playerID, std::string wordsFileName);
 
 /* Read image from filename into char buffer, saving its size */
-void readImage(std::string filename, char ** content, size_t * size);
+size_t readImage(FILE * file, char * content, size_t bufferSize);
 
 /* Send hint image content from playerID's game to player application */
 void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool verbose);
