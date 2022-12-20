@@ -23,7 +23,6 @@
 
 // TODO : 
 // melhorar state em termos de frontend
-// adicionar dup ao guess
 // Test server on sigma
 // Fazer precaução para funções de handling de ficheiros q às vezes têm erros de file n existir
 // Fix memory leaks (valgrind this b)

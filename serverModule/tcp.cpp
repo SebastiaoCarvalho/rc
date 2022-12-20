@@ -209,7 +209,7 @@ void sendState(int newfd, std::string playerID, bool verbose) {
     else if (listDirectory("GAMES/" + playerID).size() != 0 && playerID.length() == 6) { // find bug here
         file_content = getLastGameSummary(playerID);
         message = "RST FIN ";
-        message += file_content + "\n";
+        message += file_content;
     }
     else {
         message = "RST NOK\n";
