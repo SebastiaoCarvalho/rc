@@ -37,15 +37,15 @@ int main(int argc, char const *argv[]) {
     void readTcp(fd_set readfds, timeval tv, int fd, ssize_t n, std::string messageToSend, std::string type);
     
     // Variables declaration
-    std::string machineIP = "tejo.tecnico.ulisboa.pt"; //O default é o IP da máquina -> DESKTOP-8NS8GE1 ou 127.0.0.1
-    std::string port="58011";     //O default devia ser 58002
+    std::string machineIP = "127.0.0.1"; // Deafult IP
+    std::string port = "58002";     //Default port
 
     int fd,errcode;
     struct sigaction act;
     struct addrinfo hints,*res;
     struct sockaddr_in addr;
     char buffer[256];         
-    std::string playerID = "099222";
+    std::string playerID;
     std::string currentWord;
     int gameActive = 0;
     int trial = 1; 
@@ -56,7 +56,6 @@ int main(int argc, char const *argv[]) {
     
 
     readFlags(argc, argv, &machineIP, &port);
-
     memset(&hints,0,sizeof hints);
     hints.ai_family=AF_INET; //IPv4
     hints.ai_socktype=SOCK_DGRAM; //UDP socket
@@ -506,17 +505,13 @@ void readFlags(int argc, char const *argv[], std::string * machineIP, std::strin
             if (argn + 1 < argc) {
                 *machineIP = argv[argn + 1];
                 argn += 2;
-            } else {
-                *machineIP = "tejo.tecnico.ulisboa.pt";
-            }
+            } 
         }
         else if (strcmp(argv[argn],"-p") == 0) {
             if (argn + 1 < argc) {
                 *port = argv[argn + 1];
                 argn += 2;
-            } else {
-                *port = "58011";
-            }
+            } 
         } else {
             argn += 1;
         }
@@ -702,6 +697,7 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
         else if (wordsRead == 4) {
             // Last time reading
             if (lastRead == 1 or fSize < iterationSize) {
+                buffer[n-1] = '\0';
                 fwrite(buffer, sizeof(char), n, file);
                 if (type != "hint") {
                     printf("%s", buffer); 
