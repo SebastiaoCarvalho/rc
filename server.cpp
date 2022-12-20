@@ -22,23 +22,15 @@
 #include <sstream>
 
 // TODO : 
+// melhorar state em termos de frontend
+// adicionar dup ao guess
 // Test server on sigma
-// Start game tem argumento readArgs que pode ser variado -> decidir implementação (merge seed e sequentialRead , passar both)
-// Implementar timers ? (server tcp leva accept mas read demora mil anos)
 // Fazer precaução para funções de handling de ficheiros q às vezes têm erros de file n existir
 // Fix memory leaks (valgrind this b)
-// check after game stored
 // maybe change state to last summary only return content
-// check error cases for makeplay and makeguess
-// check if if else order on plays and guesses is right
 // handle signals
 // handle errors
 // handle exits freeing stuff
-
-// DUVIDAS:
-// 1. Não posso usar alocação dinâmica?
-// 2. Palavra pode ter digitos?
-// 3. Verificar erros bind serve dar exit?
 
 // Global variables
 int fd;                // Socket file descriptor
@@ -242,6 +234,13 @@ int main(int argc, char const *argv[])
             do newfd=accept(fd,(struct sockaddr*)&addr,&addrlen);//wait for a connection
             while(newfd==-1&&errno==EINTR);
             if(newfd==-1)/*error*/exitServer(1, fd, res);
+            struct timeval timeout;      
+            timeout.tv_sec = 10;
+            timeout.tv_usec = 0;
+            if (setsockopt (newfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0) {
+                close(newfd);
+                exitServer(1, fd, res);
+            } 
             if((pid=fork())==-1)/*error*/exitServer(1, fd, res);
             else if(pid==0) { // child process
                 
@@ -250,7 +249,8 @@ int main(int argc, char const *argv[])
                     if (verbose) {
                         printf("Error on reading system call.\n");
                     }
-                    continue;
+                    close(newfd); // close connection and end request
+                    exit(0);
                 }
                 buffer[n - 1] = '\0'; // Replace newline with null terminator
                 if (strncmp(buffer, "GSB", 3) == 0) {
@@ -265,7 +265,8 @@ int main(int argc, char const *argv[])
                         if (verbose) {
                             printf("Error on reading system call.\n");
                         }
-                        continue;
+                        close(newfd); // close connection and end request
+                        exit(0);
                     }
                     buffer[n - 1] = '\0'; // Replace newline with null terminator
                     std::string playerID = buffer;
@@ -280,7 +281,8 @@ int main(int argc, char const *argv[])
                         if (verbose) {
                             printf("Error on reading system call.\n");
                         }
-                        continue;
+                        close(newfd); // close connection and end request
+                        exit(0);
                     }
                     buffer[n - 1] = '\0'; // Replace newline with null terminator
                     std::string playerID = buffer;

@@ -30,3 +30,9 @@ std::vector<std::string> sortStringVector(std::vector<std::string> v);
 
 /* Read until size n */
 ssize_t readn(int fd, void *buffer, size_t n);
+
+/* Returns 1 if chars are equal upper and lower case, 0 otherwise*/
+int isEqualLowerAndUpperChar(char a, char b);
+
+/* Return 1 if strings are equal in upper or lower case, 0 otherwise */
+int isEqualLowerAndUpperString(std::string a, std::string b);
