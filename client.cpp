@@ -45,7 +45,7 @@ int main(int argc, char const *argv[]) {
     struct addrinfo hints,*res;
     struct sockaddr_in addr;
     char buffer[256];         
-    std::string playerID;
+    std::string playerID = "099222";
     std::string currentWord;
     int gameActive = 0;
     int trial = 1; 
@@ -65,7 +65,7 @@ int main(int argc, char const *argv[]) {
     signal(SIGINT, handleCtrlC);
     memset(&act,0,sizeof act);
     act.sa_handler=SIG_IGN;
-    if(sigaction(SIGPIPE,&act,NULL)==-1)/*error*/exit(1);
+    if(sigaction(SIGPIPE,&act,NULL)==-1) exit(1);
 
     while(1) {
     
@@ -113,6 +113,7 @@ int main(int argc, char const *argv[]) {
                 }
                 else if (parameters[1] == "NOK") {
                     printf("You can't start a new game. You have to wait for the current game to finish.\n");
+                    gameActive = 0;
                 }
                 else if (parameters[1] == "ERR") {
                     printf("The player ID you provided is wrong. Please make sure your player ID is 6 digits long.\n");
@@ -255,6 +256,9 @@ int main(int argc, char const *argv[]) {
                     printf("Great job! You've gessed the right word.\n");
                     trial = 1;
                     gameActive = 0;
+                }
+                else if (parameters[1] == "DUP") {
+                    printf("You have already tried to guess that word. Try another word please.\n");
                 }
                 else if (parameters[1] == "NOK") {
                     maxErrors--;
@@ -401,6 +405,7 @@ int main(int argc, char const *argv[]) {
             // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
+                        printf("%s", parameters[1].c_str());
             // If there are at least 2 parameters and the first word is correct
             if (parameters.size() > 1 && parameters[0] == "RQT") { 
                 if(parameters[1] == "ERR"){
