@@ -52,11 +52,13 @@ void readSequentialWord(std::string fileName, std::string * word, std::string * 
 }
 
 /* Check if last line is the same as the new play (repeated message case) */
-int isRepeated(std::string playerID, std::string play) {
+int isRepeated(std::string playerID, std::string play, int trialNumber) {
     std::string line = getLastLine("GAMES/GAME_" + playerID);
     printf("line: %s\n", line.c_str());
     printf("play: %s\n", play.c_str());
-    return play == line + "\n";
+    printf("trialNumber: %d\n", trialNumber);
+    printf("getLineNumber: %d\n", getLineNumber("GAMES/GAME_" + playerID));
+    return play == line + "\n" && trialNumber == getLineNumber("GAMES/GAME_" + playerID) - 1;
 }
 
 /* Get how many errors playerID made on his game */
@@ -217,23 +219,25 @@ void makePlay(std::string playerID, char letter, int trial, int fd, struct socka
     word = getWord("GAMES/GAME_" +  playerID);
     pos = getPos(word, letter);
     maxErrorsN = maxErrors(word);
+    printf("maxErrorsN: %d\n", maxErrorsN);
     errorsMade = getErrorsMade(playerID);
+    printf("errorsMade: %d\n", errorsMade);
     missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : word.length();
     printf("missing: %d\n", missing);
-    if (! isTrialValid(playerID, trial) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
+    if (! isTrialValid(playerID, trial) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial) && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial)) {
         status = "INV";
     }
-    else if (isDup(playerID, std::string(1, letter)) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
+    else if (isDup(playerID, std::string(1, letter)) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial) && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial)) {
         status = "DUP";
-    }
-    else if (errorsMade + 1 > maxErrorsN) { 
-        status = "OVR";
     }
     else if (missing - pos.size() == 0) {
         status = "WIN";
     }
     else if (pos.size() > 0) {
         status = "OK";
+    }
+    else if (errorsMade + 1 > maxErrorsN) { 
+        status = "OVR";
     }
     else {
         status = "NOK";
@@ -247,10 +251,10 @@ void makePlay(std::string playerID, char letter, int trial, int fd, struct socka
         }
     }
     message += "\n";
-    if ((status == "OK" || status == "WIN") && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
+    if ((status == "OK" || status == "WIN") && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial)) {
         savePlay(playerID, "T", "H", std::string(1, letter), missing - pos.size());
     }
-    else if (status == "NOK" && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n")) {
+    else if (status == "NOK" && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial)) {
         savePlay(playerID, "T", "M", std::string(1, letter), missing - pos.size());
     }
     if (status == "WIN") {
@@ -258,6 +262,7 @@ void makePlay(std::string playerID, char letter, int trial, int fd, struct socka
         storeGame(playerID, "W");
     }
     else if (status == "OVR") {
+        savePlay(playerID, "T", "M", std::string(1, letter), missing - pos.size());
         storeGame(playerID, "F");
     }
     if (verbose) {
@@ -279,28 +284,29 @@ void makeGuess(std::string playerID, std::string guess, int trial, int fd, struc
     errorsMade = getErrorsMade(playerID);
     missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : word.length();
     word = getWord("GAMES/GAME_" + playerID);
-    if (! isTrialValid(playerID, trial) && ! isRepeated(playerID,  "G H " + guess + " " + std::to_string(missing) + "\n") && ! isRepeated(playerID, status + "G M " + guess + " " + std::to_string(missing) + "\n")) {
+    if (! isTrialValid(playerID, trial) && ! isRepeated(playerID,  "G H " + guess + " " + std::to_string(missing) + "\n", trial) && ! isRepeated(playerID, status + "G M " + guess + " " + std::to_string(missing) + "\n", trial)) {
         status = "INV";
     }
-    else if (guess == word) {
+    else if (isEqualLowerAndUpperString(guess , word)) {
         status = "WIN";
     }
-    else if (errorsMade > maxErrorsN) {
+    else if (errorsMade + 1 > maxErrorsN) {
         status = "OVR";
     }
     else {
         status = "NOK";
     }
     message = "RWG " + status + " " + std::to_string(trial) + "\n";
-    if (status == "WIN" && ! isRepeated(playerID, "G H " + guess + " " + std::to_string(missing) + "\n")) {
+    if (status == "WIN" && ! isRepeated(playerID, "G H " + guess + " " + std::to_string(missing) + "\n", trial)) {
         savePlay(playerID, "G", "H", guess, 0);
         saveScore(playerID);
         storeGame(playerID, "W");
     }
-    else if (status == "NOK" && ! isRepeated(playerID, "G M " + guess + " " + std::to_string(missing) + "\n") ) {
+    else if (status == "NOK" && ! isRepeated(playerID, "G M " + guess + " " + std::to_string(missing) + "\n", trial) ) {
         savePlay(playerID, "G", "M", guess, missing);
     }
-    else if (status == "OVR") {
+    else if (status == "OVR" && ! isRepeated(playerID, "G M " + guess + " " + std::to_string(missing) + "\n", trial) ) {
+        savePlay(playerID, "G", "M", guess, missing);
         storeGame(playerID, "F");
     }
     if (verbose) {

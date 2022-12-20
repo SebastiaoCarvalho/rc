@@ -1,4 +1,5 @@
 #include "common.h"
+#include "../utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,7 +22,7 @@ void readWord(std::string fileName, std::string * word, std::string * hint, int 
 void readSequentialWord(std::string fileName, std::string * word, std::string * hint, int * lineNumber);
 
 /* Check if last line is the same as the new play (repeated message case) */
-int isRepeated(std::string playerID, std::string play);
+int isRepeated(std::string playerID, std::string play, int trial);
 
 /* Get how many errors playerID made on his game */
 int getErrorsMade(std::string playerID);

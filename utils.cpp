@@ -12,7 +12,7 @@ std::vector<int> getPos(std::string str, char letter) {
     ssize_t len = str.length();
     std::vector<int> pos;
     for (int i = 0; i < len; i++) {
-        if (str[i] == letter) {
+        if (isEqualLowerAndUpperChar(str[i], letter)) {
             pos.push_back(i);
         }
     }
@@ -159,3 +159,35 @@ ssize_t readn(int fd, void *buffer, size_t n)
     }
     return totalRead;                     
 }
+
+/* Returns 1 if chars are equal upper and lower case, 0 otherwise*/
+int isEqualLowerAndUpperChar(char a, char b) {
+    if (a == b) {
+        return 1;
+    }
+    if (a >= 'A' && a <= 'Z') {
+        if (a + 32 == b) {
+            return 1;
+        }
+    }
+    if (a >= 'a' && a <= 'z') {
+        if (a - 32 == b) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Return 1 if strings are equal in upper or lower case, 0 otherwise */
+int isEqualLowerAndUpperString(std::string a, std::string b) {
+    if (a.length() != b.length()) {
+        return 0;
+    }
+    for (size_t i = 0; i < a.length(); i++) {
+        if (!isEqualLowerAndUpperChar(a[i], b[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+

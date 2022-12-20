@@ -28,7 +28,7 @@ std::vector<std::string> listDirectory(std::string dirName) {
     if ((dir = opendir (dirName.c_str())) != NULL) {
         /* print all the files and directories within directory */
         while ((ent = readdir (dir)) != NULL) {
-            if (ent->d_type != DT_DIR) {
+            if (ent->d_type != DT_DIR && ent->d_name[0] != '.') {
                 files.push_back(ent->d_name);
             }
         }

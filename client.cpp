@@ -630,7 +630,6 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
     std::string filename;
     std::string sizeOfFile;
     char buffer[256];
- 
     // Empty buffer 
     memset(buffer, 0 , 256);
     
