@@ -1,20 +1,16 @@
 //FPRINTF NÃO ESCREVE '\0'
 
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <netdb.h>
 #include <iostream>
 #include <fstream>
 #include <fcntl.h>
 #include <signal.h>
 #include <string.h>
-#include <stdio.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include "utils.h"
 
-
+// Limitar numero de ports?
 // Se criação de socket falhar, repetir automaticamente
 
 // Global variables
@@ -403,7 +399,6 @@ int main(int argc, char const *argv[]) {
             // Split the buffer information into different words 
             std::vector <std::string> parameters = stringSplit(std::string(buffer), ' ');
 
-                        printf("%s", parameters[1].c_str());
             // If there are at least 2 parameters and the first word is correct
             if (parameters.size() > 1 && parameters[0] == "RQT") { 
                 if(parameters[1] == "ERR"){
