@@ -15,7 +15,6 @@
 #include "utils.h"
 
 
-//  LIMITAR NUMERO DE PORTS
 // Se criação de socket falhar, repetir automaticamente
 
 // Global variables
@@ -696,7 +695,6 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
         else if (wordsRead == 4) {
             // Last time reading
             if (lastRead == 1 or fSize < iterationSize) {
-                // buffer[n-1] = '\0';
                 fwrite(buffer, sizeof(char), n, file);
                 if (type != "hint") {
                     printf("%s", buffer); 
