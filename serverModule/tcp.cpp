@@ -135,6 +135,7 @@ void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool v
             fseek(file, 0L, SEEK_END); // get file size before reading file
             size = ftell(file);
             rewind(file);
+            imageName = "hint.png"; // set image name to hint.jpg so title doesn't give hint
             message = "RHL OK " + imageName + " " + std::to_string(size) + " ";
             sendTCP(newfd, message.c_str(), message.size());
             std::string().swap(message);
@@ -171,7 +172,7 @@ std::string getSummary(std::string filename) {
         std::string line = getLine(filename, i + 1);
         std::vector<std::string> words = stringSplit(line, ' ');
         if (words[0] == "T") {
-            summary += "Letter trial: " + words[2] + "\n";
+            summary += "Letter trial: " + words[2];
             size_t len = word.length();
             for (size_t j = 0; j < len; j++) {
                 if (word[j] == words[2][0]) {
@@ -180,7 +181,16 @@ std::string getSummary(std::string filename) {
             }
         }
         else {
-            summary += "Word trial: " + words[2] + "\n";
+            summary += "Word trial: " + words[2];
+            if (words[1] == "H") {
+                game = word;
+            }
+        }
+        if (words[1] == "H") {
+            summary += " - Hit!\n";
+        }
+        else {
+            summary += " - Miss!\n";
         }
         summary += "Solved so far: " + game + "\n";
     }
@@ -192,7 +202,17 @@ std::string getLastGameSummary(std::string playerID) {
     std::vector<std::string> files = sortStringVector(listDirectory("GAMES/" + playerID));
     ssize_t size = files.size();
     std::string filename = "GAMES/" + playerID + "/" + files[size - 1];
-    std::string file_content = "Finished game found for player " + playerID + "\n" + getSummary(filename);
+    char endStatus = filename[filename.length() - 1];
+    std::string file_content = "Finished game found for player " + playerID + "\n" + getSummary(filename) + "Game Finished: ";
+    if (endStatus == 'W') {
+        file_content += "WIN\n";
+    }
+    else if (endStatus == 'F'){
+        file_content += "FAIL\n";
+    }
+    else {
+        file_content += "QUIT\n";
+    }
     std::string res = "STATE_" + playerID + ".txt " + std::to_string(file_content.size()) + " " 
     + file_content + "\n" ;
     return res;
@@ -209,7 +229,7 @@ void sendState(int newfd, std::string playerID, bool verbose) {
     else if (listDirectory("GAMES/" + playerID).size() != 0 && playerID.length() == 6) { // find bug here
         file_content = getLastGameSummary(playerID);
         message = "RST FIN ";
-        message += file_content + "\n";
+        message += file_content;
     }
     else {
         message = "RST NOK\n";
@@ -222,6 +242,6 @@ void sendState(int newfd, std::string playerID, bool verbose) {
             printf("Replied with state on file %s.\n", ("STATE_" + playerID + ".txt").c_str());
         }
     }
-
+    printf("Message: %s", message.c_str());
     sendTCP(newfd, message.c_str(), message.size());
 }

@@ -287,6 +287,9 @@ void makeGuess(std::string playerID, std::string guess, int trial, int fd, struc
     if (! isTrialValid(playerID, trial) && ! isRepeated(playerID,  "G H " + guess + " " + std::to_string(missing) + "\n", trial) && ! isRepeated(playerID, status + "G M " + guess + " " + std::to_string(missing) + "\n", trial)) {
         status = "INV";
     }
+    else if (isDup(playerID, guess) && ! isRepeated(playerID, "G H " + guess + " " + std::to_string(missing) + "\n", trial) && ! isRepeated(playerID, "G M " + guess + " " + std::to_string(missing) + "\n", trial)) {
+        status = "DUP";
+    }
     else if (isEqualLowerAndUpperString(guess , word)) {
         status = "WIN";
     }
