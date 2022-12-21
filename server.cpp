@@ -22,6 +22,7 @@
 #include <sstream>
 
 // TODO : 
+// maybe dar fix na hint p o jpg ser recebido duma var extend (caso de ser png deve dar shit)
 // melhorar state em termos de frontend
 // Test server on sigma
 // Fazer precaução para funções de handling de ficheiros q às vezes têm erros de file n existir
