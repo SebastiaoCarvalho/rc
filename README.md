@@ -19,4 +19,6 @@ Player
     -p PORT: change the port where your server is, default is 58002
     -n IP: change the IP address where your server is, default is localhost (127.0.0.1)
 
+All images used for hint files are stored on a folder called images.
+
 Project made by Sebastião Carvalho 99326 and Frederico Silva 99222

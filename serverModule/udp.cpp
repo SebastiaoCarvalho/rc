@@ -213,6 +213,7 @@ void makePlay(std::string playerID, char letter, int trial, int fd, struct socka
     maxErrorsN = maxErrors(word);
     errorsMade = getErrorsMade(playerID);
     missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : word.length();
+    printf("Erros made: %d, max errors: %d\n", errorsMade, maxErrorsN);
     if (! isTrialValid(playerID, trial) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial) && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial)) {
         status = "INV";
     }
@@ -269,10 +270,11 @@ void makeGuess(std::string playerID, std::string guess, int trial, int fd, struc
         sendUDP(fd, message.c_str(), message.size(), addr, addrlen);
         return;
     }
+    word = getWord("GAMES/GAME_" + playerID);
     maxErrorsN = maxErrors(word);
     errorsMade = getErrorsMade(playerID);
     missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : word.length();
-    word = getWord("GAMES/GAME_" + playerID);
+    printf("Erros made: %d, max errors: %d\n", errorsMade, maxErrorsN);
     if (! isTrialValid(playerID, trial) && ! isRepeated(playerID,  "G H " + guess + " " + std::to_string(missing) + "\n", trial) && ! isRepeated(playerID, status + "G M " + guess + " " + std::to_string(missing) + "\n", trial)) {
         status = "INV";
     }
