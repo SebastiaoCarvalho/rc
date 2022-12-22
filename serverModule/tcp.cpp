@@ -22,7 +22,7 @@ void sendTCP(int fd, const char * message, size_t len) {
 
 /* Get the top 10 games */
 std::string getScoreBoard() {
-    std::vector<std::string> files = listDirectory("SCORES");
+    std::vector<std::string> files = sortStringVector(listDirectory("SCORES"));
     if (files.size() == 0) {
         return "";
     }
