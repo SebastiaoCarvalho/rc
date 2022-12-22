@@ -33,7 +33,7 @@ int main(int argc, char const *argv[]) {
     void readMessageTcp(int fd, ssize_t n, std::string type);
     int writeTcp(int fd, std::string message, int length);
     void sendTCP(int fd, std::string message);
-    void readTcp(fd_set readfds, timeval tv, int fd, ssize_t n, std::string messageToSend, std::string type);
+    void receiveTcp(fd_set readfds, timeval tv, int fd, ssize_t n, std::string messageToSend, std::string type);
     
     // Variables declaration
     std::string machineIP = "127.0.0.1"; // Deafult IP
@@ -296,7 +296,7 @@ int main(int argc, char const *argv[]) {
             sendTCP(fd, messageToSend);
 
             // Read TCP message
-            readTcp(readfds, tv, fd, n, messageToSend, "scoreboard");
+            receiveTcp(readfds, tv, fd, n, messageToSend, "scoreboard");
 
             // Close socket. If unsuccessful, try up to 5 times
             closeSocket(fd);
@@ -325,7 +325,7 @@ int main(int argc, char const *argv[]) {
             sendTCP(fd, messageToSend);
             
             // Read TCP message
-            readTcp(readfds, tv, fd, n, messageToSend, "hint");   
+            receiveTcp(readfds, tv, fd, n, messageToSend, "hint");   
             
             // Close socket. If unsuccessful, try up to 5 times
             closeSocket(fd);
@@ -350,7 +350,7 @@ int main(int argc, char const *argv[]) {
             sendTCP(fd, messageToSend);
 
             // Read TCP message
-            readTcp(readfds, tv, fd, n, messageToSend, "state");
+            receiveTcp(readfds, tv, fd, n, messageToSend, "state");
 
             // Close socket. If unsuccessful, try up to 5 times
             closeSocket(fd);
@@ -800,7 +800,7 @@ void sendTCP(int fd, std::string message) {
 }
 
 // Read TCP message with timer. If unsuccessful, try up to 5 times
-void readTcp(fd_set readfds, timeval tv,int fd, ssize_t n, std::string messageToSend, std::string type) {
+void receiveTcp(fd_set readfds, timeval tv,int fd, ssize_t n, std::string messageToSend, std::string type) {
     while(1) {
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
