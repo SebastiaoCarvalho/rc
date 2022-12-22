@@ -29,7 +29,7 @@ std::string getImageFilename(std::string playerID, std::string wordsFileName);
 size_t readImage(FILE * file, char * content, size_t bufferSize);
 
 /* Send hint image content from playerID's game to player application */
-void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool verbose);
+void sendHint(int newfd, std::string playerID, bool verbose);
 
 /* Get game summary from file filename */
 std::string getSummary(std::string filename);

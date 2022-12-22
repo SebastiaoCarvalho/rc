@@ -15,7 +15,7 @@ void createGameFile(std::string playerID, std::string word, std::string hint) {
     file.close();
 }
 
-/* Delete file given his name */
+/* Delete file given his name , returning 1 on sucess, 0 otherwise*/
 int deleteFile(std::string filename) {
     return remove(filename.c_str()) == 0;
 }
@@ -37,17 +37,6 @@ std::vector<std::string> listDirectory(std::string dirName) {
     return files;
 }
 
-/* Count number of lines in file */
-int getLineNumber(std::string fileName) {
-    std::ifstream file(fileName);
-    std::string line;
-    int line_number = 0;
-    while (std::getline(file, line)) {
-        line_number++;
-    }
-    return line_number;
-}
-
 /* Check if file with name filename exists */
 int verifyExistence(std::string filename) {
     std::ifstream file(filename);
@@ -61,8 +50,22 @@ int verifyExistence(std::string filename) {
     }
 }
 
+/* Count number of lines in file */
+int getLineNumber(std::string fileName) {
+    std::ifstream file(fileName);
+    std::string line;
+    int line_number = 0;
+    while (std::getline(file, line)) {
+        line_number++;
+    }
+    return line_number;
+}
+
 /* Get line number lineNumber from file filename */
 std::string getLine(std::string filename, int lineNumber) {
+    if (! verifyExistence(filename)) {
+        return NULL;
+    }
     std::ifstream file(filename);
     std::string line;
     int line_number = 1;
@@ -78,11 +81,17 @@ std::string getLine(std::string filename, int lineNumber) {
 
 /* Get the last line of file filename */
 std::string getLastLine(std::string filename) {
+    if (! verifyExistence(filename)) {
+        return NULL;
+    }
     return getLine(filename, getLineNumber(filename));
 }
 
 /* Get the full content of file filename */
 std::string getContent(std::string filename) {
+    if (! verifyExistence(filename)) {
+        return NULL;
+    }
     std::string file_content = "";
     std::ifstream file(filename);
     std::string line;
@@ -100,11 +109,11 @@ void appendFile(std::string filename, std::string text) {
     file.close();
 }
 
-/* Move file filename from old directory to newDir and change his name to newName */
+/* Move file filename from old directory to newDir and change his name to newName, returning 0 on success, -1 otherwise */
 int moveFile(std::string filename, std::string newDir, std::string newName) {
     if (! verifyExistence(newDir)) {
         mkdir(newDir.c_str(), 0777);
     }
     std::string newFilename = newDir + "/" + newName;
-    return rename(filename.c_str(), newFilename.c_str()) == 0;
+    return rename(filename.c_str(), newFilename.c_str());
 }

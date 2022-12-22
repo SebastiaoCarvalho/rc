@@ -30,7 +30,6 @@ void readWord(std::string fileName, std::string * word, std::string * hint, int 
     std::vector<std::string> split = stringSplit(lines[lineNumber], ' ');
     *word = split[0];
     *hint = split[1];
-    std::cout << *word << std::endl;
     file.close();
 }
 
@@ -54,10 +53,6 @@ void readSequentialWord(std::string fileName, std::string * word, std::string * 
 /* Check if last line is the same as the new play (repeated message case) */
 int isRepeated(std::string playerID, std::string play, int trialNumber) {
     std::string line = getLastLine("GAMES/GAME_" + playerID);
-    printf("line: %s\n", line.c_str());
-    printf("play: %s\n", play.c_str());
-    printf("trialNumber: %d\n", trialNumber);
-    printf("getLineNumber: %d\n", getLineNumber("GAMES/GAME_" + playerID));
     return play == line + "\n" && trialNumber == getLineNumber("GAMES/GAME_" + playerID) - 1;
 }
 
@@ -136,7 +131,6 @@ void quitGame(std::string playerID, int fd, struct sockaddr_in addr, size_t addr
 /* Check if trial number is valid for playerID's game */
 int isTrialValid(std::string playerID, int trial) {
     int line_number = getLineNumber("GAMES/GAME_" + playerID);
-    printf("line_number: %d\n", line_number);
     return trial == line_number;
 }
 
@@ -167,9 +161,8 @@ void storeGame(std::string playerID, std::string status) {
     std::string timeStamp = getDateFormatted(ltm);
     std::string filename = timeStamp + "_" + status;
     int n = moveFile("GAMES/GAME_" + playerID, "GAMES/" + playerID, filename);
-    if (n != 0) {
-        std::cout << "Error renaming file" << std::endl;
-        std::cout << "Error code: " << errno << std::endl;
+    if (n == -1) {
+        printf("Error moving file\n");
     }
 }
 
@@ -193,7 +186,6 @@ void saveScore(std::string playerID) {
     int errorsMade = getErrorsMade(playerID);
     int succ = trials - errorsMade;
     int score = scoreCalc(errors, errorsMade, trials);
-    printf("Score: %d\n", score);
     std::string scoreS = std::to_string(score);
     while (scoreS.length() < 3) {
         scoreS = "0" + scoreS;
@@ -219,11 +211,8 @@ void makePlay(std::string playerID, char letter, int trial, int fd, struct socka
     word = getWord("GAMES/GAME_" +  playerID);
     pos = getPos(word, letter);
     maxErrorsN = maxErrors(word);
-    printf("maxErrorsN: %d\n", maxErrorsN);
     errorsMade = getErrorsMade(playerID);
-    printf("errorsMade: %d\n", errorsMade);
     missing = getMissingNumber(playerID) > 0 ? getMissingNumber(playerID) : word.length();
-    printf("missing: %d\n", missing);
     if (! isTrialValid(playerID, trial) && ! isRepeated(playerID, "T H " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial) && ! isRepeated(playerID, "T M " + std::string(1, letter) + " " + std::to_string(missing) + "\n", trial)) {
         status = "INV";
     }
