@@ -532,7 +532,7 @@ void handleCtrlC(int exitValue) {
     exit(exitValue);
 }
 
-// Send message Udp. If unsuccessful, try up to 5 times
+// Send message Udp to socket. If unsuccessful, try up to 5 times
 void sendUdp(int fd, struct addrinfo* res, std::string messageToSend) {
     int numberOfTries = 0;
     int n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
@@ -547,7 +547,7 @@ void sendUdp(int fd, struct addrinfo* res, std::string messageToSend) {
     }
 }
 
-// Receive message Udp. If unsuccessful, try up to 5 times
+// Receive message Udp in the socket. If unsuccessful, try up to 5 times
 int receiveUdp(int fd, ssize_t n, char* buffer, struct sockaddr_in addr, struct addrinfo* res) {
     int numberOfTries = 0;
     n = recvfrom(fd, buffer, 256, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
@@ -563,7 +563,7 @@ int receiveUdp(int fd, ssize_t n, char* buffer, struct sockaddr_in addr, struct 
     return n;
 }
 
-// Recieve message Udp with time
+// Recieve message Udp with timer. If unsuccessful, try up to 5 times
 ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend) {
     while(1) {
         // Define arguments to set timer
@@ -656,7 +656,7 @@ int readStatusMessageScoreboard(std::string status, int wordsRead) {
     return wordsRead;
 }
 
-// Receive message Tcp. If unsuccessful, try up to 5 times
+// Receive message Tcp in the socket. If unsuccessful, try up to 5 times
 int readTcp(int fd, char* buffer, int iterationSize) {
     int numberOfTries = 0;
     ssize_t n = read(fd, buffer, iterationSize);
@@ -771,7 +771,7 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
     }
 }
 
-// Write TCP message. If unsuccessful, try up to 5 times
+// Write TCP message to the socket. If unsuccessful, try up to 5 times
 int writeTcp(int fd, std::string message, int length) {
     int numberOfTries = 0;
     ssize_t n = write(fd, message.c_str(), length);
@@ -787,7 +787,7 @@ int writeTcp(int fd, std::string message, int length) {
     return n;
 }
 
-// Send TCP message
+// Send TCP message to GS
 void sendTCP(int fd, std::string message) {
     int nw, i = 0;
     size_t n = message.length();
@@ -799,6 +799,7 @@ void sendTCP(int fd, std::string message) {
     }
 }
 
+// Read TCP message with timer. If unsuccessful, try up to 5 times
 void readTcp(fd_set readfds, timeval tv,int fd, ssize_t n, std::string messageToSend, std::string type) {
     while(1) {
         FD_ZERO(&readfds);
