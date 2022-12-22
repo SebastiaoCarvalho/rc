@@ -21,15 +21,6 @@
 #include <sys/stat.h>
 #include <sstream>
 
-// TODO : 
-// Test server on sigma
-// Fazer precaução para funções de handling de ficheiros q às vezes têm erros de file n existir
-// Fix memory leaks (valgrind this b)
-// maybe change state to last summary only return content
-// handle signals
-// handle errors
-// handle exits freeing stuff
-
 // Global variables
 int fd;                // Socket file descriptor
 struct addrinfo hints,*res; // Socket address info
@@ -53,6 +44,7 @@ int main(int argc, char const *argv[])
     bool sequentialRead = false; // default read is random
 
     readFlags(argc, argv, &fileName, &port, &verbose, &sequentialRead);
+    bootServer();
     if (verbose) {
         printf("Port: %s, File: %s, Verbose: %d, Read: %s\n", port.c_str(), fileName.c_str(), verbose, sequentialRead ? "Sequential":"Random");
     }   
