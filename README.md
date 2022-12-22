@@ -24,6 +24,6 @@ Player
 
 All images used for hint files are stored on a folder called images. If you wish to add new images to your game you need to add them to the images folder or they won't be recognized and hint command will fail. Please don't remove this direcotry. The program only works if the image files are in this directory.
 
-There are 2 directories named GAMES and SCORES that are used for storing game files and scores of games. These directories should't be deleted in any case. If you wish to remove all game files manually remove only the files and not the whole directorie. The same applies for score files.
+There are 2 directories named GAMES and SCORES that are used for storing game files and scores of games. These directories should't be deleted in any case. If you wish to remove all game files manually remove only the files and not the whole directories. The same applies for score files.
 
 Project made by Sebastião Carvalho 99326 and Frederico Silva 99222
