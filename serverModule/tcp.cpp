@@ -53,8 +53,7 @@ void sendScoreBoard(int newfd, bool verbose) {
         message = "RSB EMPTY\n";
     }
     else {
-        printf("Scoreboard: %s", scoreboard.c_str());
-        message = "RSB OK scoreboard.txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
+        message = "RSB OK scoreboard" + std::to_string(getpid()) + ".txt " + std::to_string(scoreboard.size()) + " " +  scoreboard + "\n";
     }
     if (verbose) {
         if (scoreboard == "") {
@@ -68,53 +67,27 @@ void sendScoreBoard(int newfd, bool verbose) {
 }
 
 /* Get the name of the file that is the hint for playerID's game*/
-std::string getImageFilename(std::string playerID, std::string wordsFileName) {
+std::string getImageFilename(std::string playerID) {
     if (!verifyExistence("GAMES/GAME_" + playerID)) {
         return "";
     }
     std::string filename = "GAMES/GAME_" + playerID;
-    printf("Filename: %s", filename.c_str());
-    printf("Words filename: %s", wordsFileName.c_str());
-    std::string line = getLine(wordsFileName, 1);
+    std::string line = getLine(filename, 1);
     std::vector<std::string> words = stringSplit(line, ' ');
-    printf("Image filename: %s", words[1].c_str());
     return words[1];
 }
-
-// TODO : REMOVE THIS FUNCTION
-
-// /* Read image from filename and return content */
-// std::string readImage(std::string filename) {
-//     // std::ifstream file(filename, std::ios::binary);
-//     // std::ostringstream ss;
-//     std::string image = "";
-//     if (!verifyExistence(filename)) {
-//         return image;
-//     }
-//     // ss << file.rdbuf();
-//     // image = ss.str();
-//     std::ifstream file(filename);
-//     std::string line;
-//     while (std::getline(file, line)) {
-//         //printf("Line: %s", line.c_str());
-//         image += line + "\n";
-//     }
-//     // printf("Image size: %ld", strlen(image.c_str()));
-//     return image;
-// }
 
 /* Read image from filename into char buffer, return */
 size_t readImage(FILE * file, char * content, size_t bufferSize) {
     size_t n = fread(content, 1, bufferSize, file);
     if (n < 0) {
-        perror("Error reading image");
         return 0;
     }
     return n;
 }
 
 /* Send hint image content from playerID's game to player application */
-void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool verbose) {
+void sendHint(int newfd, std::string playerID, bool verbose) {
     std::string message, imageName;
     size_t size = 0;
     size_t buffer_size = 1024;
@@ -125,7 +98,7 @@ void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool v
     }
     else {
         std::string word = stringSplit(getLine("GAMES/GAME_" + playerID, 1), ' ')[0];
-        imageName = getImageFilename(playerID, wordsFileName);
+        imageName = getImageFilename(playerID);
         if (imageName == "") {
             message = "RHL NOK\n";
             sendTCP(newfd, message.c_str(), message.size());
@@ -135,7 +108,7 @@ void sendHint(int newfd, std::string playerID, std::string wordsFileName, bool v
             fseek(file, 0L, SEEK_END); // get file size before reading file
             size = ftell(file);
             rewind(file);
-            imageName = "hint.png"; // set image name to hint.jpg so title doesn't give hint
+            imageName = "hint" + std::to_string(getpid()) + ".jpg"; // set image name to hint.jpg so title doesn't give hint
             message = "RHL OK " + imageName + " " + std::to_string(size) + " ";
             sendTCP(newfd, message.c_str(), message.size());
             std::string().swap(message);
@@ -224,7 +197,7 @@ void sendState(int newfd, std::string playerID, bool verbose) {
     if (verifyExistence("GAMES/GAME_" + playerID)) {
         message = "RST ACT ";
         file_content = "Active game found for player " + playerID + "\n" + getSummary("GAMES/GAME_" + playerID);
-        message += "STATE_" + playerID + ".txt " + std::to_string(file_content.size()) + " " + file_content + "\n";
+        message += "STATE_" + playerID + "_" + std::to_string(getpid()) + ".txt " + std::to_string(file_content.size()) + " " + file_content + "\n";
     }
     else if (listDirectory("GAMES/" + playerID).size() != 0 && playerID.length() == 6) { // find bug here
         file_content = getLastGameSummary(playerID);
@@ -242,6 +215,5 @@ void sendState(int newfd, std::string playerID, bool verbose) {
             printf("Replied with state on file %s.\n", ("STATE_" + playerID + ".txt").c_str());
         }
     }
-    printf("Message: %s", message.c_str());
     sendTCP(newfd, message.c_str(), message.size());
 }

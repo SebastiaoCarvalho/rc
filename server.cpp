@@ -22,8 +22,6 @@
 #include <sstream>
 
 // TODO : 
-// maybe dar fix na hint p o jpg ser recebido duma var extend (caso de ser png deve dar shit)
-// melhorar state em termos de frontend
 // Test server on sigma
 // Fazer precaução para funções de handling de ficheiros q às vezes têm erros de file n existir
 // Fix memory leaks (valgrind this b)
@@ -55,12 +53,13 @@ int main(int argc, char const *argv[])
     bool sequentialRead = false; // default read is random
 
     readFlags(argc, argv, &fileName, &port, &verbose, &sequentialRead);
-    bootServer();
-    printf("Port: %s, File: %s, Verbose: %d\n", port.c_str(), fileName.c_str(), verbose);   
+    if (verbose) {
+        printf("Port: %s, File: %s, Verbose: %d, Read: %s\n", port.c_str(), fileName.c_str(), verbose, sequentialRead ? "Sequential":"Random");
+    }   
     int pid = fork();
     if (pid == -1) {
         if (verbose) {
-            printf("Error forking process\n");
+            printf("Error forking process. Please restart server.\n");
         }
         exitServer(1, fd, res);
     }
@@ -85,11 +84,12 @@ int main(int argc, char const *argv[])
         errcode=getaddrinfo(NULL, port.c_str(),&hints,&res);
         if(errcode!=0) /*error*/ exitServer(errcode, fd, res);
         n=bind(fd,res->ai_addr, res->ai_addrlen);
-        printf("%d\n", errno);
         if(n==-1) /*error*/ exitServer(1, fd, res);
         while (1) {
             addrlen=sizeof(addr);
-            printf("Waiting for message...\n");
+            if (verbose) {
+                printf("Waiting for UDP request ...\n");
+            }
             memset(buffer,0,128);
             n=recvfrom(fd,buffer, 128, 0, (struct sockaddr*)&addr,&addrlen);
             if(n==-1)/*error*/exitServer(1, fd, res);
@@ -97,7 +97,7 @@ int main(int argc, char const *argv[])
             std::string message = buffer;
             message = strip(message);
             std::vector<std::string> tokens = stringSplit(message, ' ');
-            if (strncmp(buffer, "SNG", 3) == 0) {
+            if (strncmp(buffer, "SNG", 3) == 0) { // SNG command
                 if (tokens.size() != 2) {
                     sendUDP(fd, "RSG ERR\n", 8, addr, addrlen);
                     continue;
@@ -109,20 +109,18 @@ int main(int argc, char const *argv[])
                     sendUDP(fd, "RSG ERR\n", 8, addr, addrlen);
                     continue;
                 }
-                printf("PlayerID: %s\n", playerID.c_str());
                 if (verbose) {
                     printf("Received SNG with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
                 }
                 startGame(playerID, sequentialRead, &readArg, fileName, fd, addr, addrlen, verbose);
             }
-            else if (strncmp(buffer, "PLG", 3) == 0) {
+            else if (strncmp(buffer, "PLG", 3) == 0) { // PLG command
                 if (tokens.size() != 4) {
                     sendUDP(fd, "RLG ERR\n", 8, addr, addrlen);
                     continue;
                 }
                 /* Read PlayerID*/
                 std::string playerID = tokens[1];
-                printf("%s\n", playerID.c_str());
                 int errCond = playerID.length() != 6  || ! isNumber(playerID) || tokens[2].length() != 1 || ! isNumber(tokens[3]);
                 /*Read letter*/
                 if (errCond ) {
@@ -130,28 +128,23 @@ int main(int argc, char const *argv[])
                     continue;
                 }
                 char letter = tokens[2][0];
-                printf("%c\n", letter);
                 /*Read Trial*/
                 std::string trial = tokens[3];
                 if (verbose) {
                     printf("Received PLG with playerID: %s, letter: %c, trial: %s from IP address: %s and port: %d\n", playerID.c_str(), letter, trial.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
                 }
-                printf("%s\n", trial.c_str());
                 int trial_int = atoi(trial.c_str());
-                printf("trial_int: %d\n", trial_int);
                 makePlay(playerID, letter, trial_int, fd, addr, addrlen, verbose);
 
             }
-            else if (strncmp(buffer, "PWG", 3) == 0) {
+            else if (strncmp(buffer, "PWG", 3) == 0) { // PWG command
                 if (tokens.size() != 4) {
                     sendUDP(fd, "RLG ERR\n", 8, addr, addrlen);
                     continue;
                 }
                 /* Read PlayerID*/
                 std::string playerID = tokens[1];
-                printf("%s\n", playerID.c_str());
                 std::string word = tokens[2];
-                printf("%s\n", word.c_str());
                 /*Read Trial*/
                 std::string trial = tokens[3];
                 int errCond = playerID.length() != 6  || ! isNumber(playerID)  || ! isNumber(tokens[3]);
@@ -165,19 +158,17 @@ int main(int argc, char const *argv[])
                 if (verbose) {
                     printf("Received PWG with playerID: %s, word: %s, trial: %s from IP address: %s and port: %d\n", playerID.c_str(), word.c_str(), trial.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
                 }
-                printf("%s\n", trial.c_str());
                 int trial_int = atoi(trial.c_str());
                 makeGuess(playerID, word, trial_int, fd, addr, addrlen, verbose);
 
             }
-            else if (strncmp(buffer, "QUT", 3) == 0) {
+            else if (strncmp(buffer, "QUT", 3) == 0) { // QUT command
                 if (tokens.size() != 2) {
                     sendUDP(fd, "RQT ERR\n", 8, addr, addrlen);
                     continue;
                 }
                 /* Read PlayerID*/
                 std::string playerID = tokens[1];
-                printf("%s\n", playerID.c_str());
                 int errCond = playerID.length() != 6  || ! isNumber(playerID);
                 if (errCond) {
                     sendUDP(fd, "RQT ERR\n", 8, addr, addrlen);
@@ -228,7 +219,9 @@ int main(int argc, char const *argv[])
         if (bind(fd,res->ai_addr,res->ai_addrlen)==-1)/*error*/exitServer(1, fd, res);
         if (listen(fd,5)==-1)/*error*/exitServer(1, fd, res);
         while(1) {
-            printf("Waiting for connection...\n");
+            if (verbose) {
+                printf("Waiting for TCP connection ...\n");
+            }
             memset(buffer,0,128);
             addrlen=sizeof(addr);
             do newfd=accept(fd,(struct sockaddr*)&addr,&addrlen);//wait for a connection
@@ -273,7 +266,7 @@ int main(int argc, char const *argv[])
                     if (verbose) {
                         printf("Received GHL with playerID: %s from IP address: %s and port: %d\n", playerID.c_str(), inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
                     }                    
-                    sendHint(newfd, playerID, fileName, verbose);
+                    sendHint(newfd, playerID, verbose);
                 }
                 else if (strncmp(buffer, "STA", 3) == 0) {
                     n = readn(newfd, buffer, 7);
@@ -321,7 +314,13 @@ void readFlags(int argc, char const *argv[], std::string * fileName, std::string
         * fileName = "words.txt";
     }
     else {
-        * fileName = argv[1];
+        if (! verifyExistence(argv[1])) {
+            printf("File name specified does not exist. Using default file name: words.txt\n");
+            * fileName = "words.txt";
+        }
+        else {
+            * fileName = argv[1];
+        }
     }
     int argn = 1;
     while (argn < argc) {
@@ -331,7 +330,6 @@ void readFlags(int argc, char const *argv[], std::string * fileName, std::string
                 argn += 2;
             }
             else {
-                printf("Port number not specified");
                 * port = "58002";
             }
         }
