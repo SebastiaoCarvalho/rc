@@ -1,5 +1,3 @@
-//FPRINTF NÃO ESCREVE '\0'
-
 #include <netdb.h>
 #include <iostream>
 #include <fstream>
@@ -20,14 +18,20 @@ struct addrinfo hints,*res; // Socket address info
 int main(int argc, char const *argv[]) {
     
     // Functions declaration
+    void closeSocket(int fd);
+    int createTcpSocket();
+    int createUdpSocket();
     void readFlags(int argc, char const *argv[], std::string *machineIP, std::string *port);
     void handleCtrlC(int exitValue);
+    void sendUdp(int fd, struct addrinfo* res, std::string messageToSend);
     ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend);
     void sendAndReceiveUdpMessage(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend);
     int readStatusMessageHint(std::string status, int wordsRead);
     int readStatusMessageState(std::string status, int wordsRead);
     int readStatusMessageScoreboard(std::string status, int wordsRead);
+    int readTcp(int fd, char* buffer, int iterationSize);
     void readMessageTcp(int fd, ssize_t n, std::string type);
+    int writeTcp(int fd, std::string message, int length);
     void sendTCP(int fd, std::string message);
     void readTcp(fd_set readfds, timeval tv, int fd, ssize_t n, std::string messageToSend, std::string type);
     
@@ -68,11 +72,8 @@ int main(int argc, char const *argv[]) {
         std::cin >> word;
         
         if(word == "start" or word == "sg") {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // Create UDP socket
-            if(fd==-1) {
-                printf("Error creating socket. Please try again.\n");
-                continue;
-            }
+            // Create socket udp. If unsuccessful, try up to 5 times
+            fd = createUdpSocket();
 
             // Set socket to non-blocking
             fcntl(fd, F_SETFL, O_NONBLOCK);
@@ -121,17 +122,13 @@ int main(int argc, char const *argv[]) {
             else {
                 printf("Something went wrong. Please check if your player ID is correct and try again. \n");
             }
-            n = close(fd);
-            if (n == -1) {
-                continue;
-            }
+
+            // Close socket. If unsuccessful, try up to 5 times
+            closeSocket(fd);
         }
         else if(word == "play" or word == "pl") {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) {
-                printf("Error creating socket. Please try again.\n");
-                continue;
-            }
+            // Create socket udp. If unsuccessful, try up to 5 times
+            fd = createUdpSocket();
 
             // Set socket to non-blocking
             fcntl(fd, F_SETFL, O_NONBLOCK);
@@ -209,17 +206,13 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Something went wrong. Please try again.\n");
             }
-            n = close(fd);
-            if (n == -1) {
-                continue;
-            }
+            
+            // Close socket. If unsuccessful, try up to 5 times
+            closeSocket(fd);
         }
         else if(word == "guess" or word == "gw") {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // create UDP socket
-            if(fd==-1) {
-                printf("Error creating socket. Please try again.\n");
-                continue;
-            }
+            // Create socket udp. If unsuccessful, try up to 5 times
+            fd = createUdpSocket();
 
             // Read word to be guessed 
             std::string guessedWord;
@@ -280,17 +273,13 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Something went wrong. Please try again.\n");
             }  
-            n = close(fd);
-            if (n == -1) {
-                continue;
-            }          
+            
+            // Close socket. If unsuccessful, try up to 5 times
+            closeSocket(fd);         
         }
         else if(word == "scoreboard" or word == "sb") {
-            fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
-            if(fd==-1) {
-                printf("Error creating socket. Please try again.\n");
-                continue;
-            }
+            // Create socket tdp. If unsuccessful, try up to 5 times
+            fd = createTcpSocket();
 
             // Create message  
             std::string messageToSend;
@@ -309,17 +298,12 @@ int main(int argc, char const *argv[]) {
             // Read TCP message
             readTcp(readfds, tv, fd, n, messageToSend, "scoreboard");
 
-            n = close(fd);
-            if (n == -1) {
-                continue;
-            }
+            // Close socket. If unsuccessful, try up to 5 times
+            closeSocket(fd);
         }
         else if(word == "hint" or word == "h") {
-            fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
-            if(fd==-1) {
-                printf("Error creating socket. Please try again.\n");
-                continue;
-            }
+            // Create socket tdp. If unsuccessful, try up to 5 times
+            fd = createTcpSocket();
             
             if(gameActive == 0) {
                 printf("You have to start a game first.\n");
@@ -343,17 +327,12 @@ int main(int argc, char const *argv[]) {
             // Read TCP message
             readTcp(readfds, tv, fd, n, messageToSend, "hint");   
             
-            n = close(fd);
-            if (n == -1) {
-                continue;
-            }
+            // Close socket. If unsuccessful, try up to 5 times
+            closeSocket(fd);
         }
         else if(word == "state" or word == "st") {
-            fd=socket(AF_INET,SOCK_STREAM,0); // create TCP socket
-            if(fd==-1) {
-                printf("Error creating socket. Please try again.\n");
-                continue;
-            }
+            // Create socket tdp. If unsuccessful, try up to 5 times
+            fd = createTcpSocket();
 
             /* Create message */
             std::string messageToSend;
@@ -373,17 +352,12 @@ int main(int argc, char const *argv[]) {
             // Read TCP message
             readTcp(readfds, tv, fd, n, messageToSend, "state");
 
-            n = close(fd);
-            if (n == -1) {
-                continue;
-            }
+            // Close socket. If unsuccessful, try up to 5 times
+            closeSocket(fd);
         }
         else if(word == "quit") {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // Create UDP socket
-            if(fd==-1) {
-                printf("Error creating socket. Please try again.\n");
-                continue;
-            }
+            // Create socket udp. If unsuccessful, try up to 5 times
+            fd = createUdpSocket();
             
             if(gameActive == 0) {
                 printf("There's no game undergoing. If you wish to start a game, type: 'sg (yourID)'\n");
@@ -414,17 +388,13 @@ int main(int argc, char const *argv[]) {
             } else {
                 printf("Something went wrong. Please try again.\n");
             }
-            n = close(fd);
-            if (n == -1) {
-                continue;
-            }
+            
+            // Close socket. If unsuccessful, try up to 5 times
+            closeSocket(fd);
         }
         else if(word == "exit") {
-            fd=socket(AF_INET,SOCK_DGRAM,0); // Create UDP socket
-            if(fd==-1) {
-                printf("Error creating socket. Please try again.\n");
-                continue;
-            }
+            // Create socket udp. If unsuccessful, try up to 5 times
+            fd = createUdpSocket();
     
             // If there's no game ongoing, just exit the program
             if(gameActive == 0) {
@@ -475,10 +445,9 @@ int main(int argc, char const *argv[]) {
             else {
                 printf("Something went wrong. Please try again.\n");
             }
-            n = close(fd);
-            if (n == -1) {
-                continue;
-            }
+            
+            // Close socket. If unsuccessful, try up to 5 times
+            closeSocket(fd);
         }
         else {
             printf("Invalid command, please try again.\n");
@@ -490,6 +459,49 @@ int main(int argc, char const *argv[]) {
     }
 }
 
+void closeSocket(int fd) {
+    int numberOfTries = 0;
+    int n = close(fd);
+    while(n == -1) {
+        if (numberOfTries != 5) {
+            n = close(fd);
+            numberOfTries++;
+        } else {
+            printf("Error closing socket after 5 tries. Closing application now...\n");
+            exit(1);
+        }
+    }
+}
+
+int createTcpSocket() {
+    int numberOfTries = 0;
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    while (fd == -1) {
+        if (numberOfTries != 5) {
+            fd = socket(AF_INET, SOCK_STREAM, 0);
+            numberOfTries++;
+        } else {
+            printf("Error creating socket after 5 tries. Closing application now...\n");
+            exit(1);
+        }   
+    }
+    return fd;
+}
+
+int createUdpSocket() {
+    int numberOfTries = 0;
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    while (fd == -1) {
+        if (numberOfTries != 5) {
+            fd = socket(AF_INET, SOCK_DGRAM, 0);
+            numberOfTries++;
+        } else {
+            printf("Error creating socket after 5 tries. Closing application now...\n");
+            exit(1);
+        }   
+    }
+    return fd;
+}
 
 // Read input optional flags 
 void readFlags(int argc, char const *argv[], std::string * machineIP, std::string * port) {
@@ -520,7 +532,38 @@ void handleCtrlC(int exitValue) {
     exit(exitValue);
 }
 
-// Recieve Udp message
+// Send message Udp to socket. If unsuccessful, try up to 5 times
+void sendUdp(int fd, struct addrinfo* res, std::string messageToSend) {
+    int numberOfTries = 0;
+    int n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+    while(n == -1) {
+        if (numberOfTries != 5) {
+            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
+            numberOfTries++;
+        } else {
+            printf("Error sending udp message after 5 tries. Closing application now...\n");
+            exit(1);
+        }   
+    }
+}
+
+// Receive message Udp in the socket. If unsuccessful, try up to 5 times
+int receiveUdp(int fd, ssize_t n, char* buffer, struct sockaddr_in addr, struct addrinfo* res) {
+    int numberOfTries = 0;
+    n = recvfrom(fd, buffer, 256, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+    while(n == -1) {
+        if (numberOfTries != 5) {
+            n = recvfrom(fd, buffer, 256, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
+            numberOfTries++;
+        } else {
+            printf("Error receiving udp message after 5 tries. Closing application now...\n");
+            exit(1);
+        }   
+    }
+    return n;
+}
+
+// Recieve message Udp with timer. If unsuccessful, try up to 5 times
 ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend) {
     while(1) {
         // Define arguments to set timer
@@ -536,16 +579,14 @@ ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sock
 
         if (rv == 1) {
             // Receive status from GS to check if it is a hit, miss, e.t.c 
-            n = recvfrom(fd, buffer, 256, 0, (struct sockaddr*)&addr, (socklen_t*)&res->ai_addrlen);
-            if (n == -1) exit(1);
+            n = receiveUdp(fd, n, buffer, addr, res);
             break;
         } else if (numberOfTries == 5 && rv != 1) {
             printf("The server is not responding. Please try again later.\n");
             break;
         } else {
             // If there's no response from GS, send the message again
-            n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
-            if (n == -1) exit(1);
+            sendUdp(fd, res, messageToSend);
             numberOfTries++;
         }
     }
@@ -554,8 +595,8 @@ ssize_t rcvMessageUdp(fd_set readfds, timeval tv, int fd, ssize_t n, struct sock
 
 // Send and receive UDP message
 void sendAndReceiveUdpMessage(fd_set readfds, timeval tv, int fd, ssize_t n, struct sockaddr_in addr, struct addrinfo* res, char* buffer, std::string messageToSend) {
-    n = sendto(fd, messageToSend.c_str(), messageToSend.length(), 0, res->ai_addr, res->ai_addrlen);
-    if (n == -1) exit(1);
+    // Send message to GS
+    sendUdp(fd, res, messageToSend);
 
     // Empty buffer 
     memset(buffer, 0 , 256);
@@ -564,6 +605,7 @@ void sendAndReceiveUdpMessage(fd_set readfds, timeval tv, int fd, ssize_t n, str
 
     buffer[n-1] = '\0';
 }
+
 
 int readStatusMessageHint(std::string status, int wordsRead) {
     if(status == "NOK") {
@@ -613,6 +655,24 @@ int readStatusMessageScoreboard(std::string status, int wordsRead) {
     }
     return wordsRead;
 }
+
+// Receive message Tcp in the socket. If unsuccessful, try up to 5 times
+int readTcp(int fd, char* buffer, int iterationSize) {
+    int numberOfTries = 0;
+    ssize_t n = read(fd, buffer, iterationSize);
+    while (n == -1) {
+        if (numberOfTries != 5) {
+            n = read(fd, buffer, iterationSize);
+            numberOfTries++;
+        } else {
+            printf("Error sending tcp message after 5 tries. Closing application now...\n");
+            exit(1);
+        }
+    }
+    return n;
+}
+
+// Read message Tcp
 void readMessageTcp(int fd, ssize_t n, std::string type) {
     FILE* file;
     int fSize = 0;
@@ -627,8 +687,7 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
     // Empty buffer 
     memset(buffer, 0 , 256);
     
-    while((n = read(fd, buffer, iterationSize)) != 0) {
-        if (n == -1)  exit(1);
+    while((n = readTcp(fd, buffer, iterationSize)) != 0) {
         // Reads the first word
         if (wordsRead == 0) { 
             if (strcmp(buffer, " ") != 0) {
@@ -712,20 +771,35 @@ void readMessageTcp(int fd, ssize_t n, std::string type) {
     }
 }
 
-// Send TCP message
+// Write TCP message to the socket. If unsuccessful, try up to 5 times
+int writeTcp(int fd, std::string message, int length) {
+    int numberOfTries = 0;
+    ssize_t n = write(fd, message.c_str(), length);
+    while (n == -1) {
+        if (numberOfTries != 5) {
+            n = write(fd, message.c_str(), length);
+            numberOfTries++;
+        } else {
+            printf("Error sending tcp message after 5 tries. Closing application now...\n");
+            exit(1);
+        }
+    }
+    return n;
+}
+
+// Send TCP message to GS
 void sendTCP(int fd, std::string message) {
     int nw, i = 0;
     size_t n = message.length();
     // Write the message until n if its size is bigger than n
     while(n>0) {
-        if ((nw=write(fd, message.substr(i, n).c_str(),n))<=0) {
-            exit(1);
-        }
+        nw = writeTcp(fd, message.substr(i, n), n);
         n -= nw;
         i += nw;
     }
 }
 
+// Read TCP message with timer. If unsuccessful, try up to 5 times
 void readTcp(fd_set readfds, timeval tv,int fd, ssize_t n, std::string messageToSend, std::string type) {
     while(1) {
         FD_ZERO(&readfds);
