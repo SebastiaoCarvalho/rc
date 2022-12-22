@@ -99,7 +99,7 @@ void sendHint(int newfd, std::string playerID, bool verbose) {
     else {
         std::string word = stringSplit(getLine("GAMES/GAME_" + playerID, 1), ' ')[0];
         imageName = getImageFilename(playerID);
-        if (imageName == "") {
+        if (imageName == "" || !verifyExistence("images/" + imageName)) {
             message = "RHL NOK\n";
             sendTCP(newfd, message.c_str(), message.size());
         }

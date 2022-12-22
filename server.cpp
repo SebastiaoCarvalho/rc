@@ -31,6 +31,7 @@ int main(int argc, char const *argv[])
     void readFlags(int argc, char const *argv[], std::string  * fileName, std::string  * port, bool  * verbose, bool * sequentialRead);
     void bootServer();
     void handleCtrlC(int s);
+    void createDirs();
 
     // Variable declarations
     ssize_t n;
@@ -44,6 +45,7 @@ int main(int argc, char const *argv[])
     bool sequentialRead = false; // default read is random
 
     readFlags(argc, argv, &fileName, &port, &verbose, &sequentialRead);
+    createDirs();
     bootServer();
     if (verbose) {
         printf("Port: %s, File: %s, Verbose: %d, Read: %s\n", port.c_str(), fileName.c_str(), verbose, sequentialRead ? "Sequential":"Random");
@@ -223,8 +225,9 @@ int main(int argc, char const *argv[])
             timeout.tv_sec = 10;
             timeout.tv_usec = 0;
             if (setsockopt (newfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0) {
-                close(newfd);
-                exitServer(1, fd, res);
+                if (verbose) {
+                    printf("Error on setting socket options.\n");
+                }
             } 
             if((pid=fork())==-1)/*error*/exitServer(1, fd, res);
             else if(pid==0) { // child process
@@ -365,6 +368,15 @@ void bootServer() {
     std::vector<std::string>().swap(files); // free memory
 }
 
+/* Create GAMES and SCORES directories if they are not used*/
+void createDirs() {
+    if (! verifyExistence("GAMES")) {
+        mkdir("GAMES", 0777);;
+    }
+    if (! verifyExistence("SCORES")) {
+        mkdir("SCORES", 0777);;
+    }
+}
 
 
 
